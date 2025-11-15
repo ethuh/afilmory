@@ -1,7 +1,7 @@
+import { Button, ScrollArea } from '@afilmory/ui'
 import { Spring } from '@afilmory/utils'
+import { X } from 'lucide-react'
 import { m } from 'motion/react'
-
-import { LinearBorderPanel } from '~/components/common/GlassPanel'
 
 import { FILE_STATUS_CLASS, FILE_STATUS_LABEL } from './constants'
 import type { FileProgressEntry } from './types'
@@ -10,9 +10,10 @@ import { formatBytes } from './utils'
 type UploadFileListProps = {
   entries: FileProgressEntry[]
   overallProgress: number
+  onRemoveEntry?: (entry: FileProgressEntry) => void
 }
 
-export function UploadFileList({ entries, overallProgress }: UploadFileListProps) {
+export function UploadFileList({ entries, overallProgress, onRemoveEntry }: UploadFileListProps) {
   return (
     <div>
       <div className="flex items-center justify-between text-xs text-text-tertiary">
@@ -27,7 +28,8 @@ export function UploadFileList({ entries, overallProgress }: UploadFileListProps
           transition={Spring.presets.smooth}
         />
       </div>
-      <LinearBorderPanel className="bg-background/60 mt-4 max-h-60 overflow-auto">
+
+      <ScrollArea rootClassName="h-60 mt-4 -mx-4" viewportClassName="px-4">
         <m.ul
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -37,7 +39,7 @@ export function UploadFileList({ entries, overallProgress }: UploadFileListProps
           {entries.map((entry) => (
             <li
               key={`${entry.name}-${entry.index}`}
-              className="text-text-secondary flex flex-col gap-2 px-4 py-2 text-sm"
+              className="text-text-secondary flex flex-col gap-2 px-2 py-2 text-sm"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -46,9 +48,24 @@ export function UploadFileList({ entries, overallProgress }: UploadFileListProps
                   </span>
                   <p className="text-text-tertiary text-[11px]">{formatBytes(entry.size)}</p>
                 </div>
-                <span className={`${FILE_STATUS_CLASS[entry.status]} text-[11px] font-medium`}>
-                  {FILE_STATUS_LABEL[entry.status]}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`${FILE_STATUS_CLASS[entry.status]} text-[11px] font-medium`}>
+                    {FILE_STATUS_LABEL[entry.status]}
+                  </span>
+                  {onRemoveEntry ? (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="ghost"
+                      className="text-text-tertiary hover:text-rose-300"
+                      aria-label="删除文件"
+                      disabled={!(entry.status === 'pending' || entry.status === 'error')}
+                      onClick={() => (entry.status === 'pending' || entry.status === 'error') && onRemoveEntry(entry)}
+                    >
+                      <X className="h-3 w-3" strokeWidth={2} />
+                    </Button>
+                  ) : null}
+                </div>
               </div>
               <div className="bg-fill/20 h-1.5 rounded-full">
                 <div
@@ -67,7 +84,7 @@ export function UploadFileList({ entries, overallProgress }: UploadFileListProps
             </li>
           ))}
         </m.ul>
-      </LinearBorderPanel>
+      </ScrollArea>
     </div>
   )
 }

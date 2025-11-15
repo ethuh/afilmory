@@ -32,6 +32,7 @@ type PhotoUploadStoreState = {
   uploadError: string | null
   processingError: string | null
   processingState: ProcessingState | null
+  removeEntry: (entry: FileProgressEntry) => void
   beginUpload: () => Promise<void>
   abortCurrent: () => void
   reset: () => void
@@ -54,10 +55,10 @@ const PhotoUploadStoreContext = createContext<PhotoUploadStore | null>(null)
 const computeUploadedBytes = (entries: FileProgressEntry[]) => calculateUploadedBytes(entries)
 
 export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUploadStore {
-  const { files, availableTags, onUpload, onClose } = params
-  const initialEntries = createFileEntries(files)
-  const totalSize = calculateTotalSize(files)
-  const { unmatched: unmatchedMovFiles, hasMov } = collectUnmatchedMovFiles(files)
+  const { files: initialFiles, availableTags, onUpload, onClose } = params
+  const initialEntries = createFileEntries(initialFiles)
+  const totalSize = calculateTotalSize(initialFiles)
+  const { unmatched: unmatchedMovFiles, hasMov } = collectUnmatchedMovFiles(initialFiles)
 
   let uploadAbortController: AbortController | null = null
   let processingAbortController: AbortController | null = null
@@ -247,7 +248,7 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
     }
 
     return {
-      files,
+      files: initialFiles,
       totalSize,
       uploadedBytes: 0,
       availableTags,
@@ -259,8 +260,36 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
       uploadError: null,
       processingError: null,
       processingState: null,
+      removeEntry: (entry) => {
+        set((state) => {
+          if (state.phase !== 'review') {
+            return {}
+          }
+
+          const nextFiles = state.files.filter((_, index) => index !== entry.index)
+          if (nextFiles.length === state.files.length) {
+            return {}
+          }
+          const nextEntries = createFileEntries(nextFiles)
+          const nextTotalSize = calculateTotalSize(nextFiles)
+          const { unmatched, hasMov } = collectUnmatchedMovFiles(nextFiles)
+
+          return {
+            files: nextFiles,
+            totalSize: nextTotalSize,
+            unmatchedMovFiles: unmatched,
+            hasMovFile: hasMov,
+            uploadEntries: nextEntries,
+            uploadedBytes: computeUploadedBytes(nextEntries),
+          }
+        })
+      },
       beginUpload: async () => {
-        if (get().unmatchedMovFiles.length > 0 || get().phase === 'uploading' || get().phase === 'processing') {
+        const state = get()
+        if (state.unmatchedMovFiles.length > 0 || state.phase === 'uploading' || state.phase === 'processing') {
+          return
+        }
+        if (state.files.length === 0) {
           return
         }
 
@@ -283,7 +312,7 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
 
         try {
           const directory = deriveDirectoryFromTags(get().selectedTags)
-          const fileList = createFileList(files)
+          const fileList = createFileList(get().files)
           await onUpload(fileList, {
             signal: controller.signal,
             directory: directory ?? undefined,
@@ -304,7 +333,8 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
           const isAbort = (error as DOMException)?.name === 'AbortError'
           if (isAbort) {
             set({ phase: 'review' })
-            updateEntries(() => createFileEntries(files))
+            const currentFiles = get().files
+            updateEntries(() => createFileEntries(currentFiles))
           } else {
             const message = getErrorMessage(error, '上传失败，请稍后再试。')
             set({
@@ -328,7 +358,8 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
           uploadAbortController?.abort()
           uploadAbortController = null
           set({ phase: 'review' })
-          updateEntries(() => createFileEntries(files))
+          const currentFiles = get().files
+          updateEntries(() => createFileEntries(currentFiles))
           return
         }
         if (phase === 'processing') {
@@ -358,7 +389,8 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
           processingError: null,
           processingState: null,
         })
-        updateEntries(() => createFileEntries(files))
+        const currentFiles = get().files
+        updateEntries(() => createFileEntries(currentFiles))
       },
       closeModal: () => {
         get().cleanup()

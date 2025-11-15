@@ -3,7 +3,6 @@ import { clsxm } from '@afilmory/utils'
 import type { KeyboardEvent } from 'react'
 import { useMemo, useState } from 'react'
 
-import { LinearBorderPanel } from '~/components/common/GlassPanel'
 
 type AutoSelectOption = {
   label: string
@@ -50,7 +49,11 @@ export function AutoSelect({ options, value, onChange, placeholder, disabled }: 
     }
     if (event.key === 'Backspace' && !query && value.length > 0) {
       event.preventDefault()
-      handleRemove(value.at(-1))
+      const last = value.at(-1)
+      if (!last) {
+        return
+      }
+      handleRemove(last)
     }
   }
 
@@ -58,9 +61,9 @@ export function AutoSelect({ options, value, onChange, placeholder, disabled }: 
 
   return (
     <div className="space-y-3">
-      <LinearBorderPanel
+      <div
         className={clsxm(
-          'bg-background px-3 py-2 transition-opacity duration-200',
+          'bg-background px-3 rounded border-[0.5px] py-2 transition-opacity duration-200',
           disabled && 'pointer-events-none opacity-60',
         )}
       >
@@ -70,13 +73,13 @@ export function AutoSelect({ options, value, onChange, placeholder, disabled }: 
               key={tag}
               type="button"
               onClick={() => handleRemove(tag)}
-              className="bg-accent/10 text-accent hover:bg-accent/20 flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
+              className="bg-accent/10 text-accent hover:bg-accent/20 flex items-center gap-1 rounded px-2 py-0.5 text-[11px]"
             >
               {tag}
-              <span className="text-[10px] opacity-80">×</span>
+              <span className="text-sm opacity-80">×</span>
             </button>
           ))}
-          <div className="min-w-[160px] flex-1">
+          <div className="min-w-40 flex-1">
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -87,10 +90,10 @@ export function AutoSelect({ options, value, onChange, placeholder, disabled }: 
             />
           </div>
         </div>
-      </LinearBorderPanel>
+      </div>
 
       {(filteredOptions.length > 0 || showCreateOption) && !disabled ? (
-        <LinearBorderPanel className="bg-background-tertiary/70 px-3 py-2">
+        <div className="bg-background-tertiary/70 rounded px-3 py-2">
           <p className="text-text-tertiary mb-1 text-[11px]">选择或创建标签</p>
           <div className="flex flex-wrap gap-1">
             {filteredOptions.map((option) => (
@@ -117,7 +120,7 @@ export function AutoSelect({ options, value, onChange, placeholder, disabled }: 
               </Button>
             ) : null}
           </div>
-        </LinearBorderPanel>
+        </div>
       ) : null}
     </div>
   )

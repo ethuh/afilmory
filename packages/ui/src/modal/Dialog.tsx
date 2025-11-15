@@ -156,7 +156,7 @@ function DialogContent({
               }}
               transition={transition}
               className={clsxm(
-                'fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-background px-3 pt-4 pb-3 rounded-lg',
+                'fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-background px-3 pt-4 pb-3 rounded-lg shape-squircle',
                 className,
               )}
               {...props}

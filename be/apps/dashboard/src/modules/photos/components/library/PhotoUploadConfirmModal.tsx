@@ -25,4 +25,4 @@ export const PhotoUploadConfirmModal: ModalComponent<PhotoUploadConfirmModalProp
   )
 }
 
-PhotoUploadConfirmModal.contentClassName = 'w-[min(520px,92vw)] p-6'
+PhotoUploadConfirmModal.contentClassName = 'w-[min(520px,92vw)]'

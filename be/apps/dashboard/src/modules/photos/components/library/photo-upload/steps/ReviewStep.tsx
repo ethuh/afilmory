@@ -30,6 +30,7 @@ export function ReviewStep() {
   const beginUpload = usePhotoUploadStore((state) => state.beginUpload)
   const closeModal = usePhotoUploadStore((state) => state.closeModal)
   const setSelectedTags = usePhotoUploadStore((state) => state.setSelectedTags)
+  const removeEntry = usePhotoUploadStore((state) => state.removeEntry)
 
   const tagOptions = useMemo(
     () => availableTags.map((tag) => ({ label: tag, value: tag.toLowerCase() })),
@@ -42,7 +43,7 @@ export function ReviewStep() {
       <div className="space-y-2">
         <h2 className="text-text text-lg font-semibold">确认上传这些文件？</h2>
         <p className="text-text-tertiary text-sm">
-          共选择 {filesCount} 项，预计占用 {formatBytes(totalSize)}。请先设置标签后开始上传。
+          共选择 {filesCount} 项，预计占用 {formatBytes(totalSize)}。
         </p>
       </div>
 
@@ -63,10 +64,10 @@ export function ReviewStep() {
         options={tagOptions}
         value={selectedTags}
         onChange={setSelectedTags}
-        placeholder="输入后按 Enter 添加，或从建议中选择"
+        placeholder="标签：输入后按 Enter 添加，或从建议中选择"
       />
 
-      <UploadFileList entries={uploadEntries} overallProgress={progress} />
+      <UploadFileList entries={uploadEntries} overallProgress={progress} onRemoveEntry={removeEntry} />
 
       <div className="flex items-center justify-end gap-2">
         <Button
