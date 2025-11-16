@@ -45,11 +45,17 @@ export function PhotoLibraryActionBar({
 
     const selectedFiles = Array.from(files)
 
-    Modal.present(PhotoUploadConfirmModal, {
-      files: selectedFiles,
-      availableTags,
-      onUpload,
-    })
+    Modal.present(
+      PhotoUploadConfirmModal,
+      {
+        files: selectedFiles,
+        availableTags,
+        onUpload,
+      },
+      {
+        dismissOnOutsideClick: false,
+      },
+    )
 
     if (fileInputRef.current) {
       fileInputRef.current.value = ''

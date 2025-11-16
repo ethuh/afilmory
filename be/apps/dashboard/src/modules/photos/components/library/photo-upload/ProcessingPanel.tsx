@@ -1,13 +1,35 @@
+import { ScrollArea } from '@afilmory/ui'
+
 import { LinearBorderPanel } from '~/components/common/GlassPanel'
 
-import { STAGE_CONFIG, STAGE_ORDER,SUMMARY_FIELDS } from './constants'
-import type { ProcessingState } from './types'
+import { STAGE_CONFIG, STAGE_ORDER, SUMMARY_FIELDS } from './constants'
+import type { ProcessingLogEntry, ProcessingState } from './types'
 
 type ProcessingPanelProps = {
   state: ProcessingState | null
+  logs: ProcessingLogEntry[]
 }
 
-export function ProcessingPanel({ state }: ProcessingPanelProps) {
+const LOG_LEVEL_CONFIG: Record<ProcessingLogEntry['level'], { label: string; className: string }> = {
+  info: { label: 'INFO', className: 'text-slate-300' },
+  success: { label: 'OK', className: 'text-emerald-300' },
+  warn: { label: 'WARN', className: 'text-amber-300' },
+  error: { label: 'ERR', className: 'text-rose-300' },
+}
+
+const formatTimestamp = (timestamp: number) => {
+  try {
+    return new Intl.DateTimeFormat('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(timestamp)
+  } catch {
+    return new Date(timestamp).toLocaleTimeString('zh-CN')
+  }
+}
+
+export function ProcessingPanel({ state, logs }: ProcessingPanelProps) {
   if (!state) {
     return (
       <LinearBorderPanel className="bg-background/40 px-3 py-4 text-center text-xs text-text-tertiary">
@@ -57,6 +79,32 @@ export function ProcessingPanel({ state }: ProcessingPanelProps) {
           <span className="ml-1">{state.latestLog.message}</span>
         </LinearBorderPanel>
       ) : null}
+      <LinearBorderPanel className="bg-background/50 px-3 py-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-text font-medium">服务器日志</span>
+          <span className="text-text-tertiary">{logs.length} 条</span>
+        </div>
+        <ScrollArea rootClassName="mt-2 h-36 -mx-3 px-3">
+          {logs.length === 0 ? (
+            <p className="text-text-tertiary text-xs">等待日志输出...</p>
+          ) : (
+            <ul className="space-y-1.5 text-xs font-mono">
+              {logs.map((log) => {
+                const levelConfig = LOG_LEVEL_CONFIG[log.level]
+                return (
+                  <li key={log.id} className="flex items-start gap-2">
+                    <span className="text-text-tertiary text-[10px] leading-5">{formatTimestamp(log.timestamp)}</span>
+                    <span className={`${levelConfig.className} text-[10px] font-semibold leading-5`}>
+                      {levelConfig.label}
+                    </span>
+                    <span className="text-text leading-5 break-words">{log.message}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </ScrollArea>
+      </LinearBorderPanel>
     </div>
   )
 }

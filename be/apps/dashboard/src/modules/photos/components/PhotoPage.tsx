@@ -306,6 +306,7 @@ export function PhotoPage() {
           onProgress: options?.onUploadProgress,
           signal: options?.signal,
           directory: options?.directory ?? undefined,
+          timeoutMs: options?.timeoutMs,
         })
         toast.success(`成功上传 ${fileArray.length} 张图片`)
         void listQuery.refetch()

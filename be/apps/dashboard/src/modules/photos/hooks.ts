@@ -84,16 +84,19 @@ export function useUploadPhotoAssetsMutation() {
       directory,
       signal,
       onProgress,
+      timeoutMs,
     }: {
       files: File[]
       directory?: string | null
       signal?: AbortSignal
       onProgress?: UploadPhotoAssetsOptions['onProgress']
+      timeoutMs?: UploadPhotoAssetsOptions['timeoutMs']
     }) => {
       return await uploadPhotoAssets(files, {
         directory: directory ?? undefined,
         signal,
         onProgress,
+        timeoutMs,
       })
     },
     onSuccess: () => {

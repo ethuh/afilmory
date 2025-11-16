@@ -1,3 +1,7 @@
+import { useEffect, useRef } from 'react'
+import { toast } from 'sonner'
+import { useShallow } from 'zustand/shallow'
+
 import { usePhotoUploadStore } from '../store'
 import type { WorkflowPhase } from '../types'
 import { CompletedStep } from './CompletedStep'
@@ -15,7 +19,25 @@ const STEP_COMPONENTS: Record<WorkflowPhase, () => React.JSX.Element> = {
 }
 
 export function PhotoUploadSteps() {
-  const phase = usePhotoUploadStore((state) => state.phase)
+  const { phase, errorMessage } = usePhotoUploadStore(
+    useShallow((state) => ({
+      phase: state.phase,
+      errorMessage: state.uploadError ?? state.processingError,
+    })),
+  )
+  const lastErrorRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (phase === 'error' && errorMessage && lastErrorRef.current !== errorMessage) {
+      toast.error('上传失败', { description: errorMessage })
+      lastErrorRef.current = errorMessage
+      return
+    }
+    if (phase !== 'error') {
+      lastErrorRef.current = null
+    }
+  }, [phase, errorMessage])
+
   const StepComponent = STEP_COMPONENTS[phase] ?? ReviewStep
   return <StepComponent />
 }

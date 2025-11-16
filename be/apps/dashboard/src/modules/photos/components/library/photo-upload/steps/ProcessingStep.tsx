@@ -6,11 +6,12 @@ import { usePhotoUploadStore } from '../store'
 import { UploadFileList } from '../UploadFileList'
 
 export function ProcessingStep() {
-  const { uploadEntries, progress, processingState } = usePhotoUploadStore(
+  const { uploadEntries, progress, processingState, processingLogs } = usePhotoUploadStore(
     useShallow((state) => ({
       uploadEntries: state.uploadEntries,
       progress: state.totalSize === 0 ? 0 : Math.min(1, state.uploadedBytes / state.totalSize),
       processingState: state.processingState,
+      processingLogs: state.processingLogs,
     })),
   )
   const abortCurrent = usePhotoUploadStore((state) => state.abortCurrent)
@@ -23,7 +24,7 @@ export function ProcessingStep() {
       </div>
 
       <UploadFileList entries={uploadEntries} overallProgress={progress} />
-      <ProcessingPanel state={processingState} />
+      <ProcessingPanel state={processingState} logs={processingLogs} />
 
       <div className="flex items-center justify-end gap-2">
         <Button

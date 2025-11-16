@@ -37,26 +37,19 @@ export class PhotoController {
 
   @Post('assets/upload')
   async uploadAssets(@ContextParam() context: Context) {
-    const payload = await context.req.parseBody()
+    const formData = await context.req.formData()
     let directory: string | null = null
 
-    if (typeof payload['directory'] === 'string') {
-      directory = payload['directory']
-    } else if (Array.isArray(payload['directory'])) {
-      const candidate = payload['directory'].find((entry) => typeof entry === 'string')
-      directory = typeof candidate === 'string' ? candidate : null
+    const directoryEntries = formData.getAll('directory')
+    if (directoryEntries.length > 0) {
+      const candidate = directoryEntries.find((entry): entry is string => typeof entry === 'string')
+      directory = candidate ?? null
     }
 
     const files: File[] = []
-    for (const value of Object.values(payload)) {
-      if (value instanceof File) {
-        files.push(value)
-      } else if (Array.isArray(value)) {
-        for (const entry of value) {
-          if (entry instanceof File) {
-            files.push(entry)
-          }
-        }
+    for (const entry of formData.getAll('files')) {
+      if (entry instanceof File) {
+        files.push(entry)
       }
     }
 

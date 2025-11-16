@@ -38,6 +38,7 @@ export type UploadPhotoAssetsOptions = {
   directory?: string
   signal?: AbortSignal
   onProgress?: (snapshot: PhotoUploadProgressSnapshot) => void
+  timeoutMs?: number
 }
 
 export async function runPhotoSync(
@@ -254,6 +255,9 @@ export async function uploadPhotoAssets(
     xhr.open('POST', `${coreApiBaseURL}/photos/assets/upload`, true)
     xhr.withCredentials = true
     xhr.responseType = 'json'
+    if (options?.timeoutMs && Number.isFinite(options.timeoutMs)) {
+      xhr.timeout = Math.max(0, options.timeoutMs)
+    }
 
     const handleAbort = () => {
       xhr.abort()
@@ -292,6 +296,11 @@ export async function uploadPhotoAssets(
       reject(new DOMException('Upload aborted', 'AbortError'))
     }
 
+    xhr.ontimeout = () => {
+      cleanup()
+      reject(new Error('上传超时，请稍后再试。'))
+    }
+
     xhr.onload = () => {
       cleanup()
       if (xhr.status >= 200 && xhr.status < 300) {
@@ -306,7 +315,7 @@ export async function uploadPhotoAssets(
       }
 
       let message = `上传失败：${xhr.status}`
-      const {responseText} = xhr
+      const { responseText } = xhr
       if (responseText) {
         try {
           const parsed = JSON.parse(responseText)

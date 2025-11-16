@@ -7,7 +7,7 @@ import { createStore } from 'zustand/vanilla'
 import { runPhotoSync } from '../../../api'
 import type { PhotoSyncProgressEvent } from '../../../types'
 import type { PhotoUploadRequestOptions } from '../upload.types'
-import type { FileProgressEntry, ProcessingState, WorkflowPhase } from './types'
+import type { FileProgressEntry, ProcessingLogEntry, ProcessingState, WorkflowPhase } from './types'
 import {
   calculateTotalSize,
   calculateUploadedBytes,
@@ -32,6 +32,7 @@ type PhotoUploadStoreState = {
   uploadError: string | null
   processingError: string | null
   processingState: ProcessingState | null
+  processingLogs: ProcessingLogEntry[]
   removeEntry: (entry: FileProgressEntry) => void
   beginUpload: () => Promise<void>
   abortCurrent: () => void
@@ -53,6 +54,9 @@ export type PhotoUploadStore = StoreApi<PhotoUploadStoreState>
 const PhotoUploadStoreContext = createContext<PhotoUploadStore | null>(null)
 
 const computeUploadedBytes = (entries: FileProgressEntry[]) => calculateUploadedBytes(entries)
+const MAX_PROCESSING_LOGS = 200
+let processingLogSequence = 0
+const UPLOAD_REQUEST_TIMEOUT_MS = 120_000
 
 export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUploadStore {
   const { files: initialFiles, availableTags, onUpload, onClose } = params
@@ -85,6 +89,7 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
             stages: createStageStateFromTotals(totals),
             completed: false,
           },
+          processingLogs: [],
         })
         return
       }
@@ -132,15 +137,22 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
           }
           case 'log': {
             const timestamp = Date.parse(event.payload.timestamp)
+            const logEntry: ProcessingLogEntry = {
+              id: `log-${processingLogSequence++}`,
+              message: event.payload.message,
+              level: event.payload.level,
+              timestamp: Number.isNaN(timestamp) ? Date.now() : timestamp,
+            }
             return {
               processingState: {
                 ...prev,
                 latestLog: {
-                  message: event.payload.message,
-                  level: event.payload.level,
-                  timestamp: Number.isNaN(timestamp) ? Date.now() : timestamp,
+                  message: logEntry.message,
+                  level: logEntry.level,
+                  timestamp: logEntry.timestamp,
                 },
               },
+              processingLogs: [...state.processingLogs, logEntry].slice(-MAX_PROCESSING_LOGS),
             }
           }
           case 'error': {
@@ -260,6 +272,7 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
       uploadError: null,
       processingError: null,
       processingState: null,
+      processingLogs: [],
       removeEntry: (entry) => {
         set((state) => {
           if (state.phase !== 'review') {
@@ -298,6 +311,7 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
           processingError: null,
           processingState: null,
           phase: 'uploading',
+          processingLogs: [],
         })
 
         updateEntries((entries) =>
@@ -317,6 +331,7 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
             signal: controller.signal,
             directory: directory ?? undefined,
             onUploadProgress: handleUploadProgress,
+            timeoutMs: UPLOAD_REQUEST_TIMEOUT_MS,
           })
 
           updateEntries((entries) =>
@@ -388,6 +403,7 @@ export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUpl
           uploadError: null,
           processingError: null,
           processingState: null,
+          processingLogs: [],
         })
         const currentFiles = get().files
         updateEntries(() => createFileEntries(currentFiles))

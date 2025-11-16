@@ -58,6 +58,7 @@ type PreparedUploadPlan = {
   original: UploadAssetInput
   storageKey: string
   baseName: string
+  groupKey?: string
   isVideo: boolean
   isExisting?: boolean
 }
@@ -243,6 +244,13 @@ export class PhotoAssetService {
       baseNameMap: existingBaseNameMap,
     } = await this.collectExistingPhotoRecords(photoPlans, videoPlans, tenant.tenant.id, storageManager, db)
 
+    const existingPhotoIds = await this.collectExistingPhotoIds(photoPlans, tenant.tenant.id, db)
+
+    const groupOverrides = this.ensureUploadPlanKeyUniqueness(photoPlans, existingPhotoKeySet, existingPhotoIds)
+    if (groupOverrides.size > 0) {
+      this.applyGroupAdjustmentsToVideos(videoPlans, groupOverrides)
+    }
+
     const pendingPhotoPlans = photoPlans.filter((plan) => !existingPhotoKeySet.has(plan.storageKey))
 
     const additionalPhotoPlans = this.createExistingPhotoPlansForVideos(unmatchedVideoBaseNames, existingBaseNameMap)
@@ -299,20 +307,25 @@ export class PhotoAssetService {
     inputs: readonly UploadAssetInput[],
     storageConfig: StorageConfig,
   ): { photoPlans: PreparedUploadPlan[]; videoPlans: PreparedUploadPlan[] } {
-    const seenStorageKeys = new Set<string>()
+    const photoSequenceMap = new Map<string, number>()
+    const videoSequenceMap = new Map<string, number>()
     const plans: PreparedUploadPlan[] = []
 
     for (const input of inputs) {
       const storageKey = this.createStorageKey(input, storageConfig)
-      if (seenStorageKeys.has(storageKey)) {
-        continue
-      }
-      seenStorageKeys.add(storageKey)
+      const { basePath, extension } = this.splitStorageKey(storageKey)
+      const normalizedGroupBase = this.normalizeGroupBase(basePath)
+      const isVideo = this.isVideoAsset(input)
+      const sequence = this.getNextSequence(isVideo ? videoSequenceMap : photoSequenceMap, normalizedGroupBase)
+      const baseWithSuffix = this.appendSequenceSuffix(basePath, sequence)
+      const finalKey = `${baseWithSuffix}${extension}`
+
       plans.push({
         original: input,
-        storageKey,
-        baseName: this.normalizeBaseName(storageKey),
-        isVideo: this.isVideoAsset(input),
+        storageKey: finalKey,
+        baseName: this.normalizeBaseName(finalKey),
+        groupKey: this.createPlanGroupKey(normalizedGroupBase, sequence),
+        isVideo,
         isExisting: false,
       })
     }
@@ -320,6 +333,54 @@ export class PhotoAssetService {
     return {
       photoPlans: plans.filter((plan) => !plan.isVideo),
       videoPlans: plans.filter((plan) => plan.isVideo),
+    }
+  }
+
+  private ensureUploadPlanKeyUniqueness(
+    plans: PreparedUploadPlan[],
+    existingStorageKeys: Set<string>,
+    existingPhotoIds: Set<string>,
+  ): Map<string, string> {
+    if (plans.length === 0) {
+      return new Map()
+    }
+
+    const usedStorageKeys = new Set(existingStorageKeys)
+    const usedPhotoIds = new Set(existingPhotoIds)
+    const overrides = new Map<string, string>()
+
+    for (const plan of plans) {
+      const uniqueKey = this.reserveUniqueStorageKeyWithPhotoId(plan.storageKey, usedStorageKeys, usedPhotoIds)
+      if (uniqueKey !== plan.storageKey) {
+        plan.storageKey = uniqueKey
+        plan.baseName = this.normalizeBaseName(uniqueKey)
+        if (plan.groupKey) {
+          const { basePath } = this.splitStorageKey(uniqueKey)
+          overrides.set(plan.groupKey, basePath)
+        }
+      }
+    }
+
+    return overrides
+  }
+
+  private applyGroupAdjustmentsToVideos(videoPlans: PreparedUploadPlan[], overrides: Map<string, string>) {
+    if (videoPlans.length === 0 || overrides.size === 0) {
+      return
+    }
+
+    for (const plan of videoPlans) {
+      if (!plan.groupKey) {
+        continue
+      }
+      const overrideBase = overrides.get(plan.groupKey)
+      if (!overrideBase) {
+        continue
+      }
+      const { extension } = this.splitStorageKey(plan.storageKey)
+      const nextKey = `${overrideBase}${extension}`
+      plan.storageKey = nextKey
+      plan.baseName = this.normalizeBaseName(nextKey)
     }
   }
 
@@ -420,6 +481,24 @@ export class PhotoAssetService {
     )
 
     return { items, keySet: new Set(recordMap.keys()), baseNameMap }
+  }
+
+  private async collectExistingPhotoIds(
+    photoPlans: PreparedUploadPlan[],
+    tenantId: string,
+    db: ReturnType<DbAccessor['get']>,
+  ): Promise<Set<string>> {
+    const hasPlans = photoPlans.length > 0
+    if (!hasPlans) {
+      return new Set()
+    }
+
+    const rows = await db
+      .select({ photoId: photoAssets.photoId })
+      .from(photoAssets)
+      .where(eq(photoAssets.tenantId, tenantId))
+
+    return new Set(rows.map((row) => row.photoId))
   }
 
   private createExistingPhotoPlansForVideos(
@@ -717,6 +796,81 @@ export class PhotoAssetService {
       version: CURRENT_PHOTO_MANIFEST_VERSION,
       data: structuredClone(item),
     }
+  }
+
+  private splitStorageKey(storageKey: string): { basePath: string; extension: string } {
+    const extension = path.extname(storageKey)
+    if (!extension) {
+      return { basePath: storageKey, extension: '' }
+    }
+    return {
+      basePath: storageKey.slice(0, -extension.length),
+      extension,
+    }
+  }
+
+  private normalizeGroupBase(basePath: string): string {
+    return this.normalizeKeyPath(basePath).toLowerCase()
+  }
+
+  private createPlanGroupKey(basePath: string, sequence: number): string {
+    return `${basePath}#${sequence}`
+  }
+
+  private getNextSequence(sequenceMap: Map<string, number>, basePath: string): number {
+    const next = (sequenceMap.get(basePath) ?? 0) + 1
+    sequenceMap.set(basePath, next)
+    return next
+  }
+
+  private appendSequenceSuffix(basePath: string, sequence: number): string {
+    if (sequence <= 1) {
+      return basePath
+    }
+    return `${basePath}-${sequence}`
+  }
+
+  private reserveUniqueStorageKeyWithPhotoId(
+    initialKey: string,
+    usedStorageKeys: Set<string>,
+    usedPhotoIds: Set<string>,
+  ): string {
+    let candidateKey = initialKey
+
+    while (true) {
+      const candidatePhotoId = this.extractPhotoIdFromKey(candidateKey)
+      if (!usedStorageKeys.has(candidateKey) && !usedPhotoIds.has(candidatePhotoId)) {
+        usedStorageKeys.add(candidateKey)
+        usedPhotoIds.add(candidatePhotoId)
+        return candidateKey
+      }
+
+      candidateKey = this.incrementStorageKeyBase(candidateKey)
+    }
+  }
+
+  private incrementStorageKeyBase(storageKey: string): string {
+    const { basePath, extension } = this.splitStorageKey(storageKey)
+    const { root, suffix } = this.splitBaseAndNumericSuffix(basePath)
+    const nextIndex = (suffix ?? 1) + 1
+    return `${root}-${nextIndex}${extension}`
+  }
+
+  private splitBaseAndNumericSuffix(basePath: string): { root: string; suffix: number | null } {
+    const match = basePath.match(/^(.*?)(?:-(\d+))?$/)
+    if (!match) {
+      return { root: basePath, suffix: null }
+    }
+
+    const root = match[1] || basePath
+    const parsed = typeof match[2] === 'string' ? Number.parseInt(match[2], 10) : null
+    const suffix = typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : null
+    return { root, suffix }
+  }
+
+  private extractPhotoIdFromKey(storageKey: string): string {
+    const { basePath } = this.splitStorageKey(storageKey)
+    return path.basename(basePath)
   }
 
   private createStorageKey(input: UploadAssetInput, storageConfig: StorageConfig): string {

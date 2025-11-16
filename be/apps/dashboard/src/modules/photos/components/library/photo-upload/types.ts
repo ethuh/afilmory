@@ -30,6 +30,8 @@ export type ProcessingLatestLog = {
   timestamp: number
 }
 
+export type ProcessingLogEntry = ProcessingLatestLog & { id: string }
+
 export type ProcessingState = {
   dryRun: boolean
   summary: PhotoSyncResultSummary
