@@ -28,24 +28,28 @@ export function generateViewport(): Viewport {
 
 export const generateMetadata = async () => {
   const url = {
-    webUrl: 'https://innei.in',
-    apiUrl: 'https://innei.ren',
+    webUrl: 'https://afilmory.art',
   }
   const seo = {
-    title: 'Innei',
-    description: 'Innei',
-    keywords: ['Innei', 'innei', '博客', 'blog', 'nextjs', 'react'],
-  }
-  const user = {
-    username: 'innei',
-    name: 'Innei',
-    avatar: '',
+    title: 'Afilmory',
+    description:
+      'Afilmory 致力于为摄影师、策展人和品牌打造沉浸的展示体验。我们以黑色背景延展出一条长廊，观众在其中聆听故事，而非参数。',
+    keywords: [
+      'Afilmory',
+      '照片画廊',
+      '摄影作品集',
+      '图片托管',
+      '照片展示',
+      'photo gallery',
+      'image hosting',
+      'photography',
+    ],
   }
   return {
     metadataBase: new URL(url.webUrl),
     title: {
       template: `%s - ${seo.title}`,
-      default: `${seo.title} - ${seo.description}`,
+      default: seo.title,
     },
     description: seo.description,
     keywords: seo.keywords?.join(',') || '',
@@ -68,17 +72,12 @@ export const generateMetadata = async () => {
         template: `%s | ${seo.title}`,
       },
       description: seo.description,
-      siteName: `${seo.title}`,
+      siteName: seo.title,
       locale: 'zh_CN',
       type: 'website',
       url: url.webUrl,
-      images: {
-        url: user.avatar,
-        username: user.name,
-      },
     },
     twitter: {
-      creator: `@${user.username}`,
       card: 'summary_large_image',
       title: seo.title,
       description: seo.description,
