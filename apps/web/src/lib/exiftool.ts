@@ -31,7 +31,7 @@ class ExifToolManagerStatic {
     }
     const metadata = await this.exifTool.parseMetadata(new File([buffer], `/afilmory/${filename}`))
 
-    if (metadata.error) {
+    if (!metadata.success) {
       throw new Error(metadata.error)
     }
 

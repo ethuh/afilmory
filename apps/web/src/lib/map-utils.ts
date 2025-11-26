@@ -59,7 +59,8 @@ export function convertExifGPSToDecimal(exif: PickedExif | null): {
 
     if (exif.GPSAltitude && typeof exif.GPSAltitude === 'number') {
       altitude = exif.GPSAltitude
-      altitudeRef = exif.GPSAltitudeRef === 'Below Sea Level' ? 'Below Sea Level' : 'Above Sea Level'
+      // 0 (above sea level), 1 (below sea level)
+      altitudeRef = exif.GPSAltitudeRef === 1 ? 'Below Sea Level' : 'Above Sea Level'
 
       // Apply altitude reference
       if (altitudeRef === 'Below Sea Level') {
