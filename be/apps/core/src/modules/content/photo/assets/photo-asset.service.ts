@@ -31,6 +31,13 @@ import { requireTenantContext } from 'core/modules/platform/tenant/tenant.contex
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { injectable } from 'tsyringe'
 
+import { StorageAccessService } from '../access/storage-access.service'
+import {
+  createProxyUrl,
+  formatBytesForDisplay,
+  formatBytesToMb,
+  normalizeKeyPath,
+} from '../access/storage-access.utils'
 import { PhotoBuilderService } from '../builder/photo-builder.service'
 import { PhotoStorageService } from '../storage/photo-storage.service'
 import { TransactionalStorageManager } from '../storage/transactional-storage.manager'
@@ -70,6 +77,7 @@ export class PhotoAssetService {
     private readonly dbAccessor: DbAccessor,
     private readonly photoBuilderService: PhotoBuilderService,
     private readonly photoStorageService: PhotoStorageService,
+    private readonly storageAccessService: StorageAccessService,
     private readonly billingPlanService: BillingPlanService,
     private readonly billingUsageService: BillingUsageService,
     private readonly storagePlanService: StoragePlanService,
@@ -96,17 +104,19 @@ export class PhotoAssetService {
 
     const { builderConfig, storageConfig } = await this.photoStorageService.resolveConfigForTenant(tenant.tenant.id)
     const storageManager = await this.createStorageManager(builderConfig, storageConfig)
+    const secureAccessEnabled = await this.storageAccessService.resolveSecureAccessPreference(
+      storageConfig,
+      tenant.tenant.id,
+    )
 
     return await Promise.all(
       records.map(async (record) => {
-        let publicUrl: string | null = null
-        if (record.storageProvider !== DATABASE_ONLY_PROVIDER) {
-          try {
-            publicUrl = await Promise.resolve(storageManager.generatePublicUrl(record.storageKey))
-          } catch {
-            publicUrl = null
-          }
-        }
+        const publicUrl = await this.resolvePublicUrlForRecord({
+          storageManager,
+          storageKey: record.storageKey,
+          storageProvider: record.storageProvider,
+          secureAccessEnabled,
+        })
 
         return {
           id: record.id,
@@ -220,7 +230,7 @@ export class PhotoAssetService {
         try {
           await storageManager.deleteFile(record.storageKey)
           if (managedProviderKey) {
-            managedKeysToDelete.add(this.normalizeKeyPath(record.storageKey))
+            managedKeysToDelete.add(normalizeKeyPath(record.storageKey))
           }
         } catch (error) {
           throw new BizException(ErrorCode.IMAGE_PROCESSING_FAILED, {
@@ -236,7 +246,7 @@ export class PhotoAssetService {
             await storageManager.deleteFile(videoKey)
             deletedVideoKeys.add(videoKey)
             if (managedProviderKey) {
-              managedKeysToDelete.add(this.normalizeKeyPath(videoKey))
+              managedKeysToDelete.add(normalizeKeyPath(videoKey))
             }
           } catch {
             // 忽略缺失的 Live Photo 视频文件
@@ -302,6 +312,10 @@ export class PhotoAssetService {
     builder.setStorageManager(transactionalStorageManager)
     await builder.ensurePluginsReady()
     const storageManager = transactionalStorageManager
+    const secureAccessEnabled = await this.storageAccessService.resolveSecureAccessPreference(
+      storageConfig,
+      tenant.tenant.id,
+    )
     const { photoPlans, videoPlans } = this.prepareUploadPlans(inputs, storageConfig)
     const unmatchedVideoBaseNames = this.validateLivePhotoPairs(photoPlans, videoPlans)
 
@@ -350,7 +364,14 @@ export class PhotoAssetService {
         items: existingItemsRaw,
         keySet: existingPhotoKeySet,
         baseNameMap: existingBaseNameMap,
-      } = await this.collectExistingPhotoRecords(photoPlans, videoPlans, tenant.tenant.id, storageManager, db)
+      } = await this.collectExistingPhotoRecords(
+        photoPlans,
+        videoPlans,
+        tenant.tenant.id,
+        storageManager,
+        db,
+        secureAccessEnabled,
+      )
       throwIfAborted()
 
       const existingPhotoIds = await this.collectExistingPhotoIds(photoPlans, tenant.tenant.id, db)
@@ -495,6 +516,7 @@ export class PhotoAssetService {
         videoBufferMap,
         abortSignal: options?.abortSignal,
         builderLogEmitter,
+        secureAccessEnabled,
         onProcessed: async ({ storageObject, manifestItem }) => {
           throwIfAborted()
           processedCount += 1
@@ -687,6 +709,7 @@ export class PhotoAssetService {
     tenantId: string,
     storageManager: StorageManager,
     db: ReturnType<DbAccessor['get']>,
+    secureAccessEnabled: boolean,
   ): Promise<{
     items: PhotoAssetListItem[]
     keySet: Set<string>
@@ -735,14 +758,12 @@ export class PhotoAssetService {
     const records = [...recordMap.values()]
     const items = await Promise.all(
       records.map(async (record) => {
-        let publicUrl: string | null = null
-        if (record.storageProvider !== DATABASE_ONLY_PROVIDER) {
-          try {
-            publicUrl = await Promise.resolve(storageManager.generatePublicUrl(record.storageKey))
-          } catch {
-            publicUrl = null
-          }
-        }
+        const publicUrl = await this.resolvePublicUrlForRecord({
+          storageManager,
+          storageKey: record.storageKey,
+          storageProvider: record.storageProvider,
+          secureAccessEnabled,
+        })
 
         return {
           id: record.id,
@@ -858,7 +879,7 @@ export class PhotoAssetService {
       if (!object.key) {
         continue
       }
-      const normalizedKey = this.normalizeKeyPath(object.key)
+      const normalizedKey = normalizeKeyPath(object.key)
       if (targetKeys.has(normalizedKey)) {
         map.set(normalizedKey, this.normalizeStorageObjectKey(object, normalizedKey))
       }
@@ -912,6 +933,7 @@ export class PhotoAssetService {
     videoBufferMap: Map<string, Buffer>
     abortSignal?: AbortSignal
     builderLogEmitter?: DataSyncProgressEmitter
+    secureAccessEnabled: boolean
     onProcessed?: (payload: {
       plan: PreparedUploadPlan
       storageObject: StorageObject
@@ -931,6 +953,7 @@ export class PhotoAssetService {
       videoBufferMap,
       abortSignal,
       builderLogEmitter,
+      secureAccessEnabled,
       onProcessed,
     } = params
 
@@ -1063,7 +1086,12 @@ export class PhotoAssetService {
             .limit(1)
         )[0]
 
-      const publicUrl = await Promise.resolve(storageManager.generatePublicUrl(resolvedPhotoKey))
+      const publicUrl = await this.resolvePublicUrlForRecord({
+        storageManager,
+        storageKey: resolvedPhotoKey,
+        storageProvider: storageConfig.provider,
+        secureAccessEnabled,
+      })
 
       await this.recordManagedStorageReferences(storageConfig, tenantId, [
         {
@@ -1109,13 +1137,6 @@ export class PhotoAssetService {
     return results
   }
 
-  async generatePublicUrl(storageKey: string): Promise<string> {
-    const tenant = requireTenantContext()
-    const { builderConfig, storageConfig } = await this.photoStorageService.resolveConfigForTenant(tenant.tenant.id)
-    const storageManager = await this.createStorageManager(builderConfig, storageConfig)
-    return await Promise.resolve(storageManager.generatePublicUrl(storageKey))
-  }
-
   async updateAssetTags(assetId: string, tagsInput: readonly string[]): Promise<PhotoAssetListItem> {
     const tenant = requireTenantContext()
     const db = this.dbAccessor.get()
@@ -1146,8 +1167,12 @@ export class PhotoAssetService {
     const normalizedTags = this.normalizeTagList(tagsInput)
     const { builderConfig, storageConfig } = await this.photoStorageService.resolveConfigForTenant(tenant.tenant.id)
     const storageManager = await this.createStorageManager(builderConfig, storageConfig)
+    const secureAccessEnabled = await this.storageAccessService.resolveSecureAccessPreference(
+      storageConfig,
+      tenant.tenant.id,
+    )
 
-    const sanitizeKey = this.normalizeKeyPath(record.storageKey)
+    const sanitizeKey = normalizeKeyPath(record.storageKey)
     const normalizeStorageKey = createStorageKeyNormalizer(storageConfig)
     const relativeKey = normalizeStorageKey(sanitizeKey)
     const fileName = path.basename(relativeKey || sanitizeKey)
@@ -1158,7 +1183,7 @@ export class PhotoAssetService {
     const prefixSegment = this.extractStoragePrefix(sanitizeKey, relativeKey)
     const tagDirectory = normalizedTags.length > 0 ? this.joinStorageSegments(...normalizedTags) : null
     const newRelativeKey = tagDirectory ? `${tagDirectory}/${fileName}` : fileName
-    const normalizedRelativeKey = this.normalizeKeyPath(newRelativeKey)
+    const normalizedRelativeKey = normalizeKeyPath(newRelativeKey)
     const newStorageKey = prefixSegment
       ? this.joinStorageSegments(prefixSegment, normalizedRelativeKey)
       : normalizedRelativeKey
@@ -1224,10 +1249,12 @@ export class PhotoAssetService {
       throw new BizException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR, { message: '更新标签失败，请稍后再试' })
     }
 
-    const publicUrl =
-      saved.storageProvider === DATABASE_ONLY_PROVIDER
-        ? null
-        : await Promise.resolve(storageManager.generatePublicUrl(saved.storageKey))
+    const publicUrl = await this.resolvePublicUrlForRecord({
+      storageManager,
+      storageKey: saved.storageKey,
+      storageProvider: saved.storageProvider,
+      secureAccessEnabled,
+    })
 
     await this.emitManifestChanged(tenant.tenant.id)
 
@@ -1336,8 +1363,8 @@ export class PhotoAssetService {
         continue
       }
 
-      const displayLimit = limitMb ?? this.formatBytesToMb(maxBytes)
-      const actualSize = this.formatBytesToMb(size)
+      const displayLimit = limitMb ?? formatBytesToMb(maxBytes)
+      const actualSize = formatBytesToMb(size)
       throw new BizException(ErrorCode.COMMON_BAD_REQUEST, {
         message: `文件 ${input.filename} (${actualSize} MB) 超出允许的单张大小 ${displayLimit} MB`,
       })
@@ -1349,11 +1376,6 @@ export class PhotoAssetService {
       return null
     }
     return value * 1024 * 1024
-  }
-
-  private formatBytesToMb(value: number): number {
-    const mb = value / (1024 * 1024)
-    return Number(mb.toFixed(2))
   }
 
   private async ensurePhotoLibraryCapacity(
@@ -1394,7 +1416,7 @@ export class PhotoAssetService {
   }
 
   private normalizeGroupBase(basePath: string): string {
-    return this.normalizeKeyPath(basePath).toLowerCase()
+    return normalizeKeyPath(basePath).toLowerCase()
   }
 
   private createPlanGroupKey(basePath: string, sequence: number): string {
@@ -1467,7 +1489,7 @@ export class PhotoAssetService {
     const combinedDirectory = this.joinStorageSegments(storageDirectory, customDirectory)
     const keySegment = base || timestamp
     const normalized = combinedDirectory ? `${combinedDirectory}/${keySegment}${ext}` : `${keySegment}${ext}`
-    return this.normalizeKeyPath(normalized)
+    return normalizeKeyPath(normalized)
   }
 
   private resolveStorageDirectory(storageConfig: StorageConfig): string | null {
@@ -1494,27 +1516,8 @@ export class PhotoAssetService {
     if (trimmed.length === 0) {
       return null
     }
-    const normalized = this.normalizeKeyPath(trimmed)
+    const normalized = normalizeKeyPath(trimmed)
     return normalized.length > 0 ? normalized : null
-  }
-
-  private normalizeKeyPath(raw: string): string {
-    if (!raw) {
-      return ''
-    }
-
-    const segments = raw.split(/[\\/]+/)
-    const safeSegments: string[] = []
-
-    for (const segment of segments) {
-      const trimmed = segment.trim()
-      if (!trimmed || trimmed === '.' || trimmed === '..') {
-        continue
-      }
-      safeSegments.push(trimmed)
-    }
-
-    return safeSegments.join('/')
   }
 
   private resolveThumbnailStorageKey(record: PhotoAssetRecord, remotePrefix: string | null): string | null {
@@ -1596,7 +1599,7 @@ export class PhotoAssetService {
   }
 
   private normalizeStorageObjectKey(object: StorageObject, fallbackKey: string): StorageObject {
-    const normalizedKey = this.normalizeKeyPath(object?.key ?? fallbackKey)
+    const normalizedKey = normalizeKeyPath(object?.key ?? fallbackKey)
     if (object?.key === normalizedKey) {
       return object
     }
@@ -1700,7 +1703,7 @@ export class PhotoAssetService {
     const seenKeys = new Set<string>()
 
     const appendPlan = (plan: PreparedUploadPlan) => {
-      const normalizedKey = this.normalizeKeyPath(plan.storageKey)
+      const normalizedKey = normalizeKeyPath(plan.storageKey)
       if (!normalizedKey || plan.isExisting || existingStorageMap.has(normalizedKey) || seenKeys.has(normalizedKey)) {
         return
       }
@@ -1743,9 +1746,9 @@ export class PhotoAssetService {
         fileCount: usage.fileCount,
       })
       throw new BizException(ErrorCode.BILLING_QUOTA_EXCEEDED, {
-        message: `托管存储空间已超出套餐上限：当前已用 ${this.formatBytesForDisplay(
+        message: `托管存储空间已超出套餐上限：当前已用 ${formatBytesForDisplay(
           usage.totalBytes,
-        )}，套餐上限 ${this.formatBytesForDisplay(capacity)}。请清理空间或升级存储方案后再试。`,
+        )}，套餐上限 ${formatBytesForDisplay(capacity)}。请清理空间或升级存储方案后再试。`,
       })
     }
 
@@ -1758,30 +1761,13 @@ export class PhotoAssetService {
         fileCount: usage.fileCount,
       })
       throw new BizException(ErrorCode.BILLING_QUOTA_EXCEEDED, {
-        message: `托管存储空间不足：当前已用 ${this.formatBytesForDisplay(
+        message: `托管存储空间不足：当前已用 ${formatBytesForDisplay(
           usage.totalBytes,
-        )}，上传后预计 ${this.formatBytesForDisplay(projectedBytes)}，已超过套餐上限 ${this.formatBytesForDisplay(
+        )}，上传后预计 ${formatBytesForDisplay(projectedBytes)}，已超过套餐上限 ${formatBytesForDisplay(
           capacity,
         )}。请清理空间或升级存储方案后再试。`,
       })
     }
-  }
-
-  private formatBytesForDisplay(bytes: number): string {
-    if (!Number.isFinite(bytes) || bytes < 0) {
-      return '0 B'
-    }
-    const units = ['B', 'KB', 'MB', 'GB', 'TB']
-    let value = bytes
-    let unitIndex = 0
-
-    while (value >= 1024 && unitIndex < units.length - 1) {
-      value /= 1024
-      unitIndex += 1
-    }
-
-    const fixed = value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)
-    return `${fixed} ${units[unitIndex]}`
   }
 
   private async recordManagedStorageReferences(
@@ -1809,7 +1795,7 @@ export class PhotoAssetService {
     const tasks = references
       .map((reference) => ({
         ...reference,
-        storageKey: this.normalizeKeyPath(reference.storageKey),
+        storageKey: normalizeKeyPath(reference.storageKey),
       }))
       .filter((reference) => reference.storageKey.length > 0)
       .map((reference) =>
@@ -1862,7 +1848,7 @@ export class PhotoAssetService {
       return null
     }
 
-    const normalizedVideoKey = this.normalizeKeyPath(video.s3Key)
+    const normalizedVideoKey = normalizeKeyPath(video.s3Key)
     const { basePath: newPhotoBase } = this.splitStorageKey(newPhotoKey)
     if (!newPhotoBase) {
       return null
@@ -1887,5 +1873,35 @@ export class PhotoAssetService {
       s3Key: moved.key ?? nextVideoKey,
       videoUrl,
     }
+  }
+
+  private async resolvePublicUrlForRecord(params: {
+    storageManager: StorageManager
+    storageKey: string
+    storageProvider: string
+    secureAccessEnabled: boolean
+    intent?: string
+  }): Promise<string | null> {
+    const { storageManager, storageKey, storageProvider, secureAccessEnabled, intent } = params
+    if (storageProvider === DATABASE_ONLY_PROVIDER) {
+      return null
+    }
+
+    if (secureAccessEnabled) {
+      return createProxyUrl(storageKey, intent)
+    }
+
+    try {
+      return await Promise.resolve(storageManager.generatePublicUrl(storageKey))
+    } catch {
+      return null
+    }
+  }
+
+  async generatePublicUrl(storageKey: string): Promise<string> {
+    const tenant = requireTenantContext()
+    const { builderConfig, storageConfig } = await this.photoStorageService.resolveConfigForTenant(tenant.tenant.id)
+    const storageManager = await this.createStorageManager(builderConfig, storageConfig)
+    return await Promise.resolve(storageManager.generatePublicUrl(storageKey))
   }
 }

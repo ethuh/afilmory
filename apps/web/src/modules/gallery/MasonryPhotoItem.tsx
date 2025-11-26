@@ -1,7 +1,7 @@
 import { Thumbhash } from '@afilmory/ui'
 import clsx from 'clsx'
 import { m } from 'motion/react'
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useContextPhotos, usePhotoViewer } from '~/hooks/usePhotoViewer'
@@ -13,10 +13,9 @@ import {
 } from '~/icons'
 import { isMobileDevice } from '~/lib/device-viewport'
 import { ImageLoaderManager } from '~/lib/image-loader-manager'
-import { getImageFormat } from '~/lib/image-utils'
 import type { PhotoManifest } from '~/types/photo'
 
-export const MasonryPhotoItem = ({ data, width, index: _ }: { data: PhotoManifest; width: number; index: number }) => {
+export const MasonryPhotoItem = memo(({ data, width }: { data: PhotoManifest; width: number }) => {
   const photos = useContextPhotos()
   const photoViewer = usePhotoViewer()
   const { t } = useTranslation()
@@ -95,9 +94,6 @@ export const MasonryPhotoItem = ({ data, width, index: _ }: { data: PhotoManifes
   }
 
   const exifData = formatExifData()
-
-  // 使用通用的图片格式提取函数
-  const imageFormat = getImageFormat(data.originalUrl || data.s3Key || '')
 
   // 检查是否有视频内容（Live Photo 或 Motion Photo）
   const hasVideo = data.video !== undefined
@@ -302,7 +298,7 @@ export const MasonryPhotoItem = ({ data, width, index: _ }: { data: PhotoManifes
           {/* 内容层 - 独立的层以支持 backdrop-filter */}
           <div className="absolute inset-x-0 bottom-0 p-4 pb-0 text-white">
             {/* 基本信息和标签 section */}
-            <div className="mb-3 [&_*]:duration-300">
+            <div className="mb-3 **:duration-300">
               <h3 className="mb-2 truncate text-sm font-medium opacity-0 group-hover:opacity-100">{data.title}</h3>
               {data.description && (
                 <p className="mb-2 line-clamp-2 text-sm text-white/80 opacity-0 group-hover:opacity-100">
@@ -312,7 +308,7 @@ export const MasonryPhotoItem = ({ data, width, index: _ }: { data: PhotoManifes
 
               {/* 基本信息 */}
               <div className="mb-2 flex flex-wrap gap-2 text-xs text-white/80 opacity-0 group-hover:opacity-100">
-                <span>{imageFormat}</span>
+                <span>{data.format}</span>
                 <span>•</span>
                 <span>
                   {data.width} × {data.height}
@@ -373,4 +369,4 @@ export const MasonryPhotoItem = ({ data, width, index: _ }: { data: PhotoManifes
       )}
     </m.div>
   )
-}
+})

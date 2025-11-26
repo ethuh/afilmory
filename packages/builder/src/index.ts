@@ -53,7 +53,12 @@ export type {
 export type { StorageProviderFactory, StorageProviderRegistrationOptions } from './storage/index.js'
 export { LOCAL_STORAGE_PROVIDERS, REMOTE_STORAGE_PROVIDERS } from './storage/index.js'
 export { StorageFactory, StorageManager } from './storage/index.js'
+export type { B2Config, ManagedStorageConfig, S3CompatibleConfig } from './storage/interfaces.js'
 export type { BuilderConfig, BuilderConfigInput } from './types/config.js'
 export type { AfilmoryManifest, CameraInfo, LensInfo } from './types/manifest.js'
 export type { FujiRecipe, PhotoManifestItem, PickedExif, ToneAnalysis } from './types/photo.js'
 export type { S3ObjectLike } from './types/s3.js'
+
+///// Mirgation
+export { migrateManifest } from './manifest/migrate.js'
+export { CURRENT_MANIFEST_VERSION } from './manifest/version.js'

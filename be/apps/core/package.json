@@ -12,7 +12,8 @@
     "db:migrate": "pnpm -C ../../packages/db db:migrate",
     "db:studio": "pnpm -C ../../packages/db db:studio",
     "dev": "nodemon",
-    "dev:reset-superadmin-password": "vite-node src/index.ts --reset-superadmin-password"
+    "dev:reset-superadmin-password": "vite-node src/index.ts --reset-superadmin-password",
+    "manifest:migrate": "vite-node src/index.ts manifest:migrate"
   },
   "dependencies": {
     "@afilmory/be-utils": "workspace:*",
@@ -24,7 +25,9 @@
     "@afilmory/sdk": "workspace:*",
     "@afilmory/task-queue": "workspace:*",
     "@afilmory/utils": "workspace:*",
+    "@aws-crypto/sha256-js": "5.2.0",
     "@aws-sdk/client-s3": "3.929.0",
+    "@aws-sdk/s3-request-presigner": "3.939.0",
     "@creem_io/better-auth": "0.0.8",
     "@hono/node-server": "^1.19.6",
     "@resvg/resvg-js": "2.6.2",
