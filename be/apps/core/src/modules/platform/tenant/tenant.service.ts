@@ -118,6 +118,7 @@ export class TenantService {
   async listTenants(options?: {
     page?: number
     limit?: number
+    search?: string
     status?: TenantRecord['status']
     sortBy?: 'createdAt' | 'name'
     sortDir?: 'asc' | 'desc'
@@ -125,6 +126,7 @@ export class TenantService {
     return await this.repository.listTenants({
       page: options?.page ?? 1,
       limit: options?.limit ?? 20,
+      search: options?.search,
       status: options?.status,
       sortBy: options?.sortBy,
       sortDir: options?.sortDir,

@@ -118,6 +118,7 @@ export interface SuperAdminTenantListResponse {
 export interface SuperAdminTenantListParams {
   page: number
   limit: number
+  search?: string
   status?: string
   sortBy?: string
   sortDir?: 'asc' | 'desc'

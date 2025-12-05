@@ -1,8 +1,18 @@
-import { Button, Modal, Prompt, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@afilmory/ui'
+import {
+  Button,
+  Input,
+  Modal,
+  Prompt,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@afilmory/ui'
 import { Spring } from '@afilmory/utils'
-import { ArrowDownIcon, ArrowUpIcon, ChevronLeftIcon, ChevronRightIcon, RefreshCcwIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, ChevronLeftIcon, ChevronRightIcon, RefreshCcwIcon, SearchIcon } from 'lucide-react'
 import { m } from 'motion/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -30,10 +40,21 @@ export function SuperAdminTenantManager() {
   const [status, setStatus] = useState<string>('all')
   const [sortBy, setSortBy] = useState<string>('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
 
   const tenantsQuery = useSuperAdminTenantsQuery({
     page,
     limit,
+    search: debouncedSearch,
     status: status === 'all' ? undefined : status,
     sortBy,
     sortDir,
@@ -163,25 +184,36 @@ export function SuperAdminTenantManager() {
   return (
     <m.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={Spring.presets.smooth}>
       <header className="flex items-center justify-between gap-3 mb-4">
-        <div className="w-[200px]">
-          <Select
-            value={status}
-            onValueChange={(val) => {
-              setStatus(val)
-              setPage(1)
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={t('superadmin.tenants.filter.status')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('superadmin.tenants.filter.all')}</SelectItem>
-              <SelectItem value="active">{t('superadmin.tenants.status.active')}</SelectItem>
-              <SelectItem value="inactive">{t('superadmin.tenants.status.inactive')}</SelectItem>
-              <SelectItem value="suspended">{t('superadmin.tenants.status.suspended')}</SelectItem>
-              <SelectItem value="pending">{t('superadmin.tenants.status.pending')}</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-3">
+          <div className="w-[200px]">
+            <Select
+              value={status}
+              onValueChange={(val) => {
+                setStatus(val)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={t('superadmin.tenants.filter.status')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('superadmin.tenants.filter.all')}</SelectItem>
+                <SelectItem value="active">{t('superadmin.tenants.status.active')}</SelectItem>
+                <SelectItem value="inactive">{t('superadmin.tenants.status.inactive')}</SelectItem>
+                <SelectItem value="suspended">{t('superadmin.tenants.status.suspended')}</SelectItem>
+                <SelectItem value="pending">{t('superadmin.tenants.status.pending')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-[240px] relative">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-tertiary pointer-events-none" />
+            <Input
+              className="pl-9"
+              placeholder={t('superadmin.tenants.search.placeholder')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
         <Button
           type="button"
@@ -311,6 +343,8 @@ export function SuperAdminTenantManager() {
               </div>
               <div className="flex items-center gap-2">
                 <Button
+                  type="button"
+                  variant="ghost"
                   className="size-8"
                   disabled={page <= 1 || tenantsQuery.isFetching}
                   onClick={() => setPage((p) => p - 1)}
@@ -321,6 +355,8 @@ export function SuperAdminTenantManager() {
                   {page} / {totalPages || 1}
                 </div>
                 <Button
+                  type="button"
+                  variant="ghost"
                   className="size-8"
                   disabled={page >= totalPages || tenantsQuery.isFetching}
                   onClick={() => setPage((p) => p + 1)}

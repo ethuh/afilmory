@@ -1,4 +1,4 @@
-import { createZodDto } from '@afilmory/framework'
+import { createZodDto, createZodSchemaDto } from '@afilmory/framework'
 import { BILLING_PLAN_IDS } from 'core/modules/platform/billing/billing-plan.constants'
 import type { BillingPlanId } from 'core/modules/platform/billing/billing-plan.types'
 import { z } from 'zod'
@@ -96,3 +96,24 @@ const updateTenantBanSchema = z.object({
 })
 
 export class UpdateTenantBanDto extends createZodDto(updateTenantBanSchema) {}
+
+const tenantIdParamSchema = z.object({
+  tenantId: z.string().trim().min(1),
+})
+
+const listTenantsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().default(20),
+  search: z.string().trim().optional(),
+  status: z.enum(['pending', 'active', 'inactive', 'suspended']).optional(),
+  sortBy: z.enum(['createdAt', 'name']).optional(),
+  sortDir: z.enum(['asc', 'desc']).optional(),
+})
+
+const tenantPhotosQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().default(20),
+})
+
+export class TenantIdParamDto extends createZodSchemaDto(tenantIdParamSchema) {}
+export class ListTenantsQueryDto extends createZodSchemaDto(listTenantsQuerySchema) {}
+export class TenantPhotosQueryDto extends createZodSchemaDto(tenantPhotosQuerySchema) {}

@@ -47,6 +47,7 @@ export async function fetchSuperAdminTenants(
   if (params) {
     if (params.page) query.set('page', String(params.page))
     if (params.limit) query.set('limit', String(params.limit))
+    if (params.search) query.set('search', params.search)
     if (params.status) query.set('status', params.status)
     if (params.sortBy) query.set('sortBy', params.sortBy)
     if (params.sortDir) query.set('sortDir', params.sortDir)

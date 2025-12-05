@@ -3,7 +3,7 @@ import { RESERVED_TENANT_SLUGS } from '@afilmory/utils'
 import { DbAccessor } from 'core/database/database.provider'
 import { BizException, ErrorCode } from 'core/errors'
 import type { BillingPlanId } from 'core/modules/platform/billing/billing-plan.types'
-import { and, asc, count, desc, eq, notInArray } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, notInArray, or } from 'drizzle-orm'
 import { injectable } from 'tsyringe'
 
 import type { TenantAggregate, TenantRecord } from './tenant.types'
@@ -79,17 +79,23 @@ export class TenantRepository {
   async listTenants(options: {
     page: number
     limit: number
+    search?: string
     status?: TenantRecord['status']
     sortBy?: 'createdAt' | 'name'
     sortDir?: 'asc' | 'desc'
   }): Promise<{ items: TenantAggregate[]; total: number }> {
     const db = this.dbAccessor.get()
-    const { page, limit, status, sortBy = 'createdAt', sortDir = 'desc' } = options
+    const { page, limit, search, status, sortBy = 'createdAt', sortDir = 'desc' } = options
 
     const conditions = [notInArray(tenants.slug, RESERVED_TENANT_SLUGS)]
 
     if (status) {
       conditions.push(eq(tenants.status, status))
+    }
+
+    if (search) {
+      const searchLike = `%${search}%`
+      conditions.push(or(ilike(tenants.name, searchLike), ilike(tenants.slug, searchLike)))
     }
 
     const where = and(...conditions)
