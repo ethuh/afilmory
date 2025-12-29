@@ -15,7 +15,7 @@
   "dependencies": {
     "@vingle/bmp-js": "^0.2.5",
     "blurhash": "2.0.5",
-    "c12": "^3.3.2",
+    "c12": "^3.3.3",
     "consola": "3.4.2",
     "dotenv-expand": "catalog:",
     "execa": "9.6.1",

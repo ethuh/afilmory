@@ -12,11 +12,11 @@
     "@afilmory/be-utils": "workspace:*",
     "@afilmory/utils": "workspace:*",
     "@hono/node-server": "^1.19.7",
-    "hono": "^4.11.1",
+    "hono": "^4.11.3",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1",
+    "@types/node": "^25.0.3",
     "nodemon": "3.1.11",
     "typescript": "catalog:",
     "vite": "8.0.0-beta.0",

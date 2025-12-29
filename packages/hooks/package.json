@@ -11,7 +11,7 @@
     "react": "^19.1.1"
   },
   "dependencies": {
-    "jotai": "^2.16.0",
+    "jotai": "^2.16.1",
     "usehooks-ts": "^3.1.1"
   },
   "devDependencies": {
