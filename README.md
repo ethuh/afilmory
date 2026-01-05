@@ -4,168 +4,355 @@
 
 # <p align="center">Afilmory</p>
 
-Afilmory (/əˈfɪlməri/, "uh-FIL-muh-ree") is a term created for personal photography websites, blending Auto Focus (AF), aperture (light control), film (vintage medium), and memory (captured moments).
+<p align="center">
+  <em>A modern, high-performance photo gallery platform for photographers</em>
+</p>
 
-A modern photo gallery website built with React + TypeScript, supporting automatic photo synchronization from multiple storage sources (S3, GitHub), featuring high-performance WebGL rendering, masonry layout, EXIF information display, thumbnail generation, and more.
-
-## 🚀 Get Started in Seconds
-
-**👉 [Use the Official SaaS](https://afilmory.art/) - No setup required!**
-
-The easiest way to create your photo gallery is through our hosted service at **[afilmory.art](https://afilmory.art/)**. Sign up, connect your storage, and your gallery is live in minutes—no deployment, no servers, no maintenance.
-
-### Why Use the Official SaaS?
-
-- ✅ **Zero setup** - No configuration, no deployment, no infrastructure management
-- ✅ **Live CMS** - Edit photos, titles, and metadata in real-time without rebuilding
-- ✅ **Custom domains** - Bind your own domain with DNS verification
-- ✅ **Automatic updates** - Always running the latest version with new features
-- ✅ **Managed infrastructure** - We handle scaling, backups, and maintenance
-
-[**Get Started Now →**](https://afilmory.art/)
+<p align="center">
+  <a href="https://afilmory.art/">Official SaaS</a> •
+  <a href="https://docs.afilmory.art/">Documentation</a> •
+  <a href="#-live-galleries">Live Examples</a> •
+  <a href="#-self-hosting">Self-Hosting</a>
+</p>
 
 ---
 
-### Live Photo Galleries
+**Afilmory** (/əˈfɪlməri/, "uh-FIL-muh-ree") is a comprehensive photo gallery solution that combines **Auto Focus (AF)**, **Aperture** (light control), **Film** (vintage medium), and **Memory** (captured moments). Built with React + TypeScript, it offers automatic photo synchronization from multiple storage sources, high-performance WebGL rendering, and professional EXIF metadata display.
 
-- https://afilmory.innei.in
-- https://gallery.mxte.cc
-- https://photography.pseudoyu.com
-- https://afilmory.magren.cc
+## 🚀 Quick Start
 
-## 🌟 Features
+### Option 1: Official SaaS (Recommended)
 
-### Core Functionality
+**👉 [Get Started at afilmory.art](https://afilmory.art/)** - Zero setup, live in minutes!
 
-- 🖼️ **High-Performance WebGL Image Renderer** - Custom WebGL component with smooth zoom and pan operations
-- 📱 **Responsive Masonry Layout** - Powered by Masonic, adapts to different screen sizes
-- 🎨 **Modern UI Design** - Built with Tailwind CSS and Radix UI component library
-- ⚡ **Incremental Sync** - Smart change detection, processes only new or modified photos
-- 🌐 **i18n** - Multi-language support
-- 🔗 **OpenGraph** - OpenGraph metadata for social media sharing
+The easiest way to create your photo gallery. No deployment, no servers, no maintenance required.
+
+**Why Choose SaaS?**
+- ✅ **Zero Configuration** - Sign up and go live immediately
+- ✅ **Live CMS** - Edit photos, titles, and metadata in real-time
+- ✅ **Custom Domains** - Bind your own domain with DNS verification
+- ✅ **Auto Updates** - Always running the latest features
+- ✅ **Managed Infrastructure** - We handle scaling, backups, and maintenance
+
+[**Start Your Gallery Now →**](https://afilmory.art/)
+
+### Option 2: Self-Hosting
+
+For developers who need full control over their deployment:
+
+**Docker (Recommended)**
+```bash
+# See our Docker deployment guide
+https://github.com/Afilmory/docker
+```
+
+**Manual Installation**
+```bash
+# 1. Clone and install
+git clone https://github.com/Afilmory/Afilmory.git
+cd Afilmory
+pnpm install
+
+# 2. Configure
+cp config.example.json config.json
+cp builder.config.default.ts builder.config.ts
+# Edit both files with your settings
+
+# 3. Build manifest and thumbnails
+pnpm run build:manifest
+
+# 4. Start the application
+pnpm dev
+```
+
+For detailed self-hosting instructions, see [DEVELOPMENT.md](./DEVELOPMENT.md) and [Documentation](https://docs.afilmory.art).
+
+## 📸 Live Galleries
+
+See Afilmory in action:
+
+- [afilmory.innei.in](https://afilmory.innei.in) - Creator's personal gallery
+- [gallery.mxte.cc](https://gallery.mxte.cc)
+- [photography.pseudoyu.com](https://photography.pseudoyu.com)
+- [afilmory.magren.cc](https://afilmory.magren.cc)
+
+## ✨ Features
+
+### Core Capabilities
+
+- 🖼️ **High-Performance WebGL Renderer** - Custom WebGL image viewer with smooth zoom, pan, and gesture support
+- 📱 **Responsive Masonry Layout** - Powered by Masonic, adapts seamlessly to any screen size
+- 🎨 **Modern UI/UX** - Built with Tailwind CSS and Radix UI for accessibility and aesthetics
+- ⚡ **Incremental Sync** - Smart change detection processes only new or modified photos
+- 🌐 **Internationalization** - Multi-language support with i18next
+- 🔗 **Social Sharing** - OpenGraph metadata for rich social media previews
 
 ### Image Processing
 
-- 🔄 **HEIC/HEIF Format Support** - Automatic conversion of Apple device HEIC format
-- 📷 **TIFF Format Support** - Automatic conversion of TIFF format
-- 🖼️ **Smart Thumbnail Generation** - Multi-size thumbnails for optimized loading performance
-- 📊 **EXIF Information Display** - Complete shooting parameters including camera model, focal length, aperture, etc.
-- 🌈 **Blurhash Placeholders** - Elegant image loading experience
-- 📱 **Live Photo Support** - Detection and display of iPhone Live Photos
-- ☀️ **HDR Image Support** - Display HDR images
+- 🔄 **Format Support** - Automatic conversion of HEIC/HEIF and TIFF formats
+- 🖼️ **Smart Thumbnails** - Multi-size thumbnail generation for optimized loading
+- 📊 **Complete EXIF Display** - Camera model, focal length, aperture, ISO, and more
+- 🌈 **Blurhash Placeholders** - Elegant progressive loading experience
+- 📱 **Live Photos** - Detection and display of iPhone Live Photos
+- ☀️ **HDR Images** - Full HDR image support
+- 🎛️ **Fujifilm Recipes** - Display Fujifilm film simulation settings
 
 ### Advanced Features
 
-- 🎛️ **Fujifilm Recipe** - Read and display Fujifilm camera film simulation settings
-- 🔍 **Fullscreen Viewer** - Image viewer with gesture support
-- 🏷️ **File System Tags** - Auto-generated tags based on file system
-- ⚡ **Concurrent Processing** - Multi-process/multi-thread concurrent processing support
-- 🗂️ **Multi-Storage Support** - S3, GitHub, and other storage backends
-- 📷 **Share Image** - Share image to social media or embed iframe to your website
-- 🗺️ **Interactive Map Explorer** - Geographic visualization of photos with GPS coordinates from EXIF data using MapLibre
+- 🗂️ **Multi-Storage Support** - S3-compatible storage, GitHub, Eagle, and local file system
+- 🏷️ **File System Tags** - Auto-generated tags based on directory structure
+- ⚡ **Concurrent Processing** - Multi-process/multi-thread support for fast builds
+- 🗺️ **Interactive Map** - Geographic visualization with GPS coordinates using MapLibre
+- 🔍 **Fullscreen Viewer** - Immersive image viewing with gesture controls
+- 📷 **Share & Embed** - Share images to social media or embed in your website
 
-## 🏗️ Technical Architecture
+## 🏗️ Architecture
 
-### Frontend Tech Stack
+### Monorepo Structure
 
-- **React 19** - Latest React version with Compiler
-- **TypeScript** - Complete type safety
-- **Vite** - Modern build tool
-- **Tailwind CSS** - Atomic CSS framework
-- **Radix UI** - Accessible component library
-- **Jotai** - State management
+```
+afilmory/
+├── apps/
+│   ├── web/              # React SPA (Vite + React Router 7)
+│   ├── ssr/              # Next.js SSR wrapper for SEO/OG
+│   ├── docs/             # Documentation site (VitePress)
+│   └── landing/          # Marketing landing page
+├── be/                   # Backend services (Hono-based)
+│   ├── apps/
+│   │   ├── core/         # Core API server
+│   │   ├── dashboard/    # Admin dashboard backend
+│   │   └── oauth-gateway/# OAuth authentication gateway
+│   └── packages/
+│       ├── framework/    # Hono enterprise framework
+│       ├── db/           # Database schemas (Drizzle ORM)
+│       ├── redis/        # Redis client
+│       └── websocket/    # WebSocket gateway
+├── packages/
+│   ├── builder/          # Photo processing pipeline
+│   ├── webgl-viewer/     # WebGL image viewer component
+│   ├── ui/               # Shared UI components
+│   ├── hooks/            # React hooks library
+│   ├── sdk/              # API client SDK
+│   ├── utils/            # Utility functions
+│   └── data/             # Shared data types
+└── plugins/              # Builder plugins
+```
+
+### Frontend Stack
+
+- **React 19** - Latest React with Compiler
+- **TypeScript** - Full type safety
+- **Vite** - Lightning-fast build tool
+- **React Router 7** - Modern routing
+- **Tailwind CSS** - Utility-first CSS framework
+- **Radix UI** - Accessible component primitives
+- **Jotai** - Atomic state management
 - **TanStack Query** - Data fetching and caching
-- **React Router 7** - Routing management
 - **i18next** - Internationalization
 
-### Build System
+### Backend Stack
+
+- **Hono** - Ultra-fast web framework
+- **Drizzle ORM** - Type-safe database toolkit
+- **PostgreSQL** - Primary database
+- **Redis** - Caching and pub/sub
+- **WebSocket** - Real-time communication
+
+### Build Pipeline
 
 - **Node.js** - Server-side runtime
 - **Sharp** - High-performance image processing
 - **AWS SDK** - S3 storage operations
-- **Worker Threads/Cluster** - Concurrent processing
-- **EXIF-Reader** - EXIF data extraction
+- **Worker Threads/Cluster** - Parallel processing
+- **EXIF-Reader** - Metadata extraction
 
-### Storage Architecture
+### Storage Adapters
 
-Designed with adapter pattern, supporting multiple storage backends:
+Designed with adapter pattern for flexibility:
 
-- **S3-Compatible Storage** - AWS S3, MinIO, Alibaba Cloud OSS, etc.
-- **GitHub Storage** - Using GitHub repository as image storage
-- **Eagle Storage** - Using Eagle app library as image storage
-- **Local File System** - Local storage for development and testing
+- **S3-Compatible** - AWS S3, MinIO, Backblaze B2, Alibaba Cloud OSS
+- **GitHub** - Use GitHub repository as storage
+- **Eagle** - Import from Eagle app library
+- **Local File System** - For development and testing
 
-## 🛠️ Self-Host (Advanced)
+## 🛠️ Development
 
-If you prefer to host Afilmory yourself, you can deploy it on your own infrastructure. This requires more technical knowledge and ongoing maintenance.
+### Prerequisites
 
-> **💡 Tip**: For most users, we recommend using the [official SaaS](https://afilmory.art/) instead. Self-hosting is best suited for developers who need full control over their deployment or have specific infrastructure requirements.
+- Node.js 18+
+- pnpm 10+
+- TypeScript 5.9+
 
-### Option A: Docker (recommended)
+### Project Setup
 
-[Docker deployment guide](https://github.com/Afilmory/docker) ships prebuilt images with minimal setup.
+```bash
+# Install dependencies
+pnpm install
 
-### Option B: Manual install
+# Copy configuration files
+cp config.example.json config.json
+cp builder.config.default.ts builder.config.ts
 
-1. Copy `config.example.json` to `config.json` and fill in your site name, description, and social links.
-2. Prepare access to your photo storage (S3/B2/GitHub/local). The builder will read photos and generate thumbnails plus `photos-manifest.json`.
-3. Run the builder to generate assets, then start the site.
+# Set up environment variables
+cp .env.template .env
+# Edit .env with your credentials
+```
 
-Looking for developer commands, environment variables, and builder config details? See `DEVELOPMENT.md`.
+### Common Commands
 
-For detailed self-hosting instructions, see the [Documentation](https://docs.afilmory.art).
+```bash
+# Development
+pnpm dev                    # Start web + SSR
+pnpm dev:be                 # Start backend services
+pnpm --filter web dev       # Web app only
+pnpm --filter @afilmory/ssr dev  # SSR only
 
-## 🔧 Advanced Usage
+# Build
+pnpm build                  # Build production web app
+pnpm build:manifest         # Generate photo manifest (incremental)
+pnpm build:manifest -- --force  # Full rebuild
+
+# Documentation
+pnpm docs:dev               # Start docs dev server
+pnpm docs:build             # Build documentation
+
+# Code Quality
+pnpm lint                   # Lint and fix
+pnpm format                 # Format code
+pnpm type-check             # Type checking
+```
+
+### Configuration Files
+
+**`config.json`** - Site presentation config:
+```json
+{
+  "name": "My Gallery",
+  "title": "My Photography",
+  "description": "Capturing beautiful moments",
+  "url": "https://gallery.example.com",
+  "accentColor": "#007bff",
+  "author": {
+    "name": "Your Name",
+    "url": "https://example.com",
+    "avatar": "https://example.com/avatar.jpg"
+  },
+  "social": {
+    "github": "username",
+    "twitter": "username"
+  },
+  "map": ["maplibre"],
+  "mapStyle": "builtin",
+  "mapProjection": "mercator"
+}
+```
+
+**`builder.config.ts`** - Photo processing config:
+```typescript
+import { defineBuilderConfig } from '@afilmory/builder'
+
+export default defineBuilderConfig(() => ({
+  storage: {
+    provider: 's3',
+    bucket: 'my-photos',
+    region: 'us-east-1',
+    // ... other S3 settings
+  },
+  system: {
+    processing: {
+      defaultConcurrency: 10,
+      enableLivePhotoDetection: true,
+    },
+    observability: {
+      showProgress: true,
+      showDetailedStats: true,
+    },
+  },
+}))
+```
+
+## 🔌 Extending Afilmory
 
 ### Custom Storage Provider
 
-Implement the `StorageProvider` interface to support new storage backends:
+Implement the `StorageProvider` interface:
 
 ```typescript
-import { StorageProvider } from './src/core/storage/interfaces'
+import { StorageProvider } from '@afilmory/builder'
 
 class MyStorageProvider implements StorageProvider {
   async getFile(key: string): Promise<Buffer | null> {
-    // Implement file retrieval logic
+    // Your implementation
   }
 
   async listImages(): Promise<StorageObject[]> {
-    // Implement image list retrieval logic
+    // Your implementation
   }
 
-  // ... other methods
+  // ... other required methods
 }
 ```
 
-### Custom Image Processing
+### Custom Builder Plugin
 
-Add custom processors in the `src/core/image/` directory:
+Create a plugin for the build pipeline:
 
 ```typescript
-export async function customImageProcessor(buffer: Buffer) {
-  // Custom image processing logic
-  return processedBuffer
-}
+import { BuilderPlugin } from '@afilmory/builder'
+
+export const myPlugin = (): BuilderPlugin => ({
+  name: 'my-plugin',
+  async onBeforeBuild(context) {
+    // Pre-build hook
+  },
+  async onAfterBuild(context) {
+    // Post-build hook
+  },
+})
 ```
-
-## 📄 License
-
-Attribution Network License (ANL) v1.0 © 2025 Afilmory Team. See [LICENSE](LICENSE) for more details.
 
 ## 📚 Documentation
 
-- **[Official Documentation](https://docs.afilmory.art/)** - Complete guides, API reference, and tutorials
-- **[Quick Start Guide](https://docs.afilmory.art/getting-started/quick-start)** - Get your gallery running in 5 minutes
-- **[SaaS Mode](https://docs.afilmory.art/saas)** - Learn about hosted galleries and multi-tenant features
-- **[Storage Providers](https://docs.afilmory.art/storage/providers)** - Setup guides for S3, GitHub, B2, and more
-- **[Deployment Guides](https://docs.afilmory.art/deployment)** - Deploy to Vercel, Cloudflare Pages, Docker, and more
+- **[Official Documentation](https://docs.afilmory.art/)** - Complete guides and API reference
+- **[Quick Start Guide](https://docs.afilmory.art/getting-started/quick-start)** - Get running in 5 minutes
+- **[SaaS Mode](https://docs.afilmory.art/saas)** - Learn about hosted galleries
+- **[Storage Providers](https://docs.afilmory.art/storage/providers)** - Setup guides for all storage options
+- **[Deployment Guides](https://docs.afilmory.art/deployment)** - Deploy to various platforms
+- **[API Reference](https://docs.afilmory.art/api)** - Backend API documentation
 
-## 🔗 Related Links
+## 🤝 Contributing
 
-- [Official SaaS](https://afilmory.art/) 
-- [Personal Website](https://innei.in)
-- [GitHub](https://github.com/innei)
+We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md) for details.
+
+### Development Workflow
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests and linting (`pnpm test && pnpm lint`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+## 📄 License
+
+Attribution Network License (ANL) v1.0 © 2025 Afilmory Team
+
+See [LICENSE](./LICENSE) for more details.
+
+## 🔗 Links
+
+- **[Official SaaS](https://afilmory.art/)** - Hosted gallery service
+- **[Documentation](https://docs.afilmory.art/)** - Full documentation
+- **[GitHub](https://github.com/Afilmory/Afilmory)** - Source code
+- **[Creator's Website](https://innei.in)** - Project creator
+
+## 🙏 Acknowledgments
+
+Built with love by the Afilmory team and contributors. Special thanks to all photographers using Afilmory to share their work with the world.
 
 ---
 
-If this project helps you, please give it a ⭐️ Star for support!
+<p align="center">
+  If this project helps you, please give it a ⭐️ Star!
+</p>

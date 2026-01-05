@@ -1,9 +1,11 @@
-import { tenants } from '@afilmory/db'
+import { authUsers, creemSubscriptions, tenants } from '@afilmory/db'
+import { createLogger } from '@afilmory/framework'
 import { DbAccessor } from 'core/database/database.provider'
 import { BizException, ErrorCode } from 'core/errors'
 import { SystemSettingService } from 'core/modules/configuration/system-setting/system-setting.service'
 import { requireTenantContext } from 'core/modules/platform/tenant/tenant.context'
-import { eq } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
+import { and, desc, eq, inArray, or } from 'drizzle-orm'
 import { injectable } from 'tsyringe'
 
 import { BillingPlanService } from './billing-plan.service'
@@ -25,6 +27,7 @@ export interface StorageQuotaSummary {
 
 @injectable()
 export class StoragePlanService {
+  private readonly logger = createLogger('StoragePlanService')
   constructor(
     private readonly dbAccessor: DbAccessor,
     private readonly systemSettingService: SystemSettingService,
@@ -103,6 +106,26 @@ export class StoragePlanService {
     return plan
   }
 
+  async getActivePlanSummaryForTenant(tenantId: string): Promise<StoragePlanSummary | null> {
+    const plan = await this.getPlanSummaryForTenant(tenantId)
+    if (!plan || plan.isActive === false) {
+      return null
+    }
+
+    const productId = plan.payment?.creemProductId ?? null
+    if (!productId) {
+      return plan
+    }
+
+    const subscription = await this.resolveLatestSubscriptionForTenant(tenantId, productId)
+    if (!subscription) {
+      return plan
+    }
+
+    const state = this.resolveSubscriptionState(subscription)
+    return state === 'inactive' ? null : plan
+  }
+
   async getOverviewForCurrentTenant(): Promise<StoragePlanOverview> {
     const tenant = requireTenantContext()
     const [plans, currentPlan, providerKey] = await Promise.all([
@@ -146,6 +169,73 @@ export class StoragePlanService {
     }
     const planId = record.storagePlanId?.trim()
     return planId && planId.length > 0 ? planId : null
+  }
+
+  private async resolveLatestSubscriptionForTenant(tenantId: string, productId: string) {
+    const db = this.dbAccessor.get()
+    const users = await db
+      .select({ id: authUsers.id, creemCustomerId: authUsers.creemCustomerId })
+      .from(authUsers)
+      .where(eq(authUsers.tenantId, tenantId))
+
+    const userIds = users.map((user) => user.id).filter((id): id is string => typeof id === 'string' && id.length > 0)
+    const customerIds = users
+      .map((user) => user.creemCustomerId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+
+    if (userIds.length === 0 && customerIds.length === 0) {
+      return null
+    }
+
+    const conditions: SQL[] = []
+    if (userIds.length > 0) {
+      conditions.push(inArray(creemSubscriptions.referenceId, userIds))
+    }
+    if (customerIds.length > 0) {
+      conditions.push(inArray(creemSubscriptions.creemCustomerId, customerIds))
+    }
+
+    const where =
+      conditions.length === 1 ? conditions[0] : and(or(...conditions), eq(creemSubscriptions.productId, productId))
+
+    const [record] = await db
+      .select()
+      .from(creemSubscriptions)
+      .where(conditions.length === 1 ? and(where, eq(creemSubscriptions.productId, productId)) : where)
+      .orderBy(desc(creemSubscriptions.updatedAt))
+      .limit(1)
+
+    return record ?? null
+  }
+
+  private resolveSubscriptionState(
+    subscription: typeof creemSubscriptions.$inferSelect,
+  ): 'active' | 'inactive' | 'unknown' {
+    const now = Date.now()
+    const status = subscription.status?.toLowerCase() ?? null
+    const periodEndRaw = subscription.periodEnd
+    const periodEnd = periodEndRaw ? new Date(periodEndRaw).getTime() : null
+    const hasValidPeriodEnd = periodEnd !== null && !Number.isNaN(periodEnd)
+
+    if (hasValidPeriodEnd && periodEnd <= now) {
+      return 'inactive'
+    }
+
+    const activeStatuses = new Set(['active', 'trialing', 'paid'])
+    if (status && activeStatuses.has(status)) {
+      return 'active'
+    }
+
+    if (subscription.cancelAtPeriodEnd && hasValidPeriodEnd && periodEnd > now) {
+      return 'active'
+    }
+
+    const inactiveStatuses = new Set(['canceled', 'cancelled', 'expired', 'past_due', 'unpaid'])
+    if (status && inactiveStatuses.has(status)) {
+      return 'inactive'
+    }
+
+    return 'unknown'
   }
 
   private async getPlanCatalog(): Promise<Record<string, StoragePlanDefinition>> {

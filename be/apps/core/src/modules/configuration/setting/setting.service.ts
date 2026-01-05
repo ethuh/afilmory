@@ -133,13 +133,9 @@ export class SettingService {
       if (found) return found
     }
 
-    // Fallback: if there is exactly one provider, automatically set it active and persist the setting
+    // Fallback: if there is exactly one provider, treat it as active without mutating settings.
     if (providers.length === 1) {
-      const only = providers[0]
-      // Persist synchronously; ignore schema sensitivity (it's non-sensitive)
-      const setOptions = options ? { ...options, isSensitive: false } : { isSensitive: false }
-      await this.set('builder.storage.activeProvider', only.id, setOptions)
-      return only
+      return providers[0]
     }
 
     return null

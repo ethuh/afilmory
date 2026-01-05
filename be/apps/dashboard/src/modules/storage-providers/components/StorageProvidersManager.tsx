@@ -5,11 +5,13 @@ import { m } from 'motion/react'
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
+import { toast } from 'sonner'
 
 import { useSetPhotoSyncAutoRun } from '~/atoms/photo-sync'
 import { LinearBorderPanel } from '~/components/common/LinearBorderPanel'
 import { MainPageLayout, useMainPageLayout } from '~/components/layouts/MainPageLayout'
 import { useBlock } from '~/hooks/useBlock'
+import { getRequestErrorMessage } from '~/lib/errors'
 import { useManagedStoragePlansQuery } from '~/modules/storage-plans'
 
 import { MANAGED_STORAGE_ACTIVE_ID, storageProvidersI18nKeys } from '../constants'
@@ -186,6 +188,10 @@ export function StorageProvidersManager() {
               },
             })
           }
+        },
+        onError: (error) => {
+          const message = getRequestErrorMessage(error, t('errors.request.generic'))
+          toast.error(t(storageProvidersI18nKeys.status.error, { reason: message }))
         },
       },
     )

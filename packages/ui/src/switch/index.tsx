@@ -15,7 +15,7 @@ export function Switch({ className, ...props }: SwitchProps) {
     <SwitchAnimate
       className={clsxm(
         'relative flex h-6 w-10 items-center justify-start rounded-full border p-0.5 transition-colors',
-        'data-[state=checked]:justify-end',
+        'data-[state=checked]:justify-end disabled:pointer-events-none disabled:grayscale-50',
         className,
       )}
       {...props}

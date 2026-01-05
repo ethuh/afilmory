@@ -60,7 +60,6 @@ export class PhotoStorageService {
       return { builderConfig: overrides.builderConfig, storageConfig }
     }
 
-    const activeProvider = await this.settingService.getActiveStorageProvider({ tenantId })
     if (activeProviderId === MANAGED_ACTIVE_PROVIDER_ID) {
       const managedConfig = await this.tryResolveManagedStorageConfig(tenantId)
       if (managedConfig) {
@@ -71,6 +70,7 @@ export class PhotoStorageService {
       }
     }
 
+    const activeProvider = await this.settingService.getActiveStorageProvider({ tenantId })
     if (!activeProvider) {
       throw new BizException(ErrorCode.COMMON_BAD_REQUEST, {
         message: 'Active storage provider is not configured. Configure storage settings before running sync.',
@@ -87,7 +87,7 @@ export class PhotoStorageService {
 
   private async tryResolveManagedStorageConfig(tenantId: string): Promise<ManagedStorageConfig | null> {
     const [plan, provider] = await Promise.all([
-      this.storagePlanService.getPlanSummaryForTenant(tenantId),
+      this.storagePlanService.getActivePlanSummaryForTenant(tenantId),
       this.systemSettingService.getManagedStorageProvider(),
     ])
 
