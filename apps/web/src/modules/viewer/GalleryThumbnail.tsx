@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { useMobile } from '~/hooks/useMobile'
 import { nextFrame } from '~/lib/dom'
-import type { PhotoManifest } from '~/types/photo'
+import type { MediaManifest } from '~/types/media'
 
 const thumbnailSize = {
   mobile: 48,
@@ -16,7 +16,7 @@ const thumbnailSize = {
 
 export const GalleryThumbnail: FC<{
   currentIndex: number
-  photos: PhotoManifest[]
+  photos: MediaManifest[]
   onIndexChange: (index: number) => void
   visible?: boolean
 }> = ({ currentIndex, photos, onIndexChange, visible = true }) => {

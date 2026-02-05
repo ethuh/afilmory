@@ -1,15 +1,17 @@
 import type { RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import type { PhotoManifest } from '~/types/photo'
+import type { MediaManifest, PhotoManifest } from '~/types/media'
 
 import type { AnimationFrameRect, PhotoViewerTransition, PhotoViewerTransitionState } from './types'
 import { computeViewerImageFrame, escapeAttributeValue, getBorderRadius } from './utils'
 
+const isPhotoManifestItem = (item: MediaManifest): item is PhotoManifest => item.kind !== 'video'
+
 interface UsePhotoViewerTransitionsParams {
   isOpen: boolean
   triggerElement: HTMLElement | null
-  currentPhoto: PhotoManifest | undefined
+  currentPhoto: MediaManifest | undefined
   currentBlobSrc: string | null
   isMobile: boolean
 }
@@ -142,7 +144,11 @@ export const usePhotoViewerTransitions = ({
       return
     }
 
-    const imageSrc = currentBlobSrc || currentPhoto.thumbnailUrl || currentPhoto.originalUrl || null
+    const imageSrc =
+      currentBlobSrc ||
+      currentPhoto.thumbnailUrl ||
+      (isPhotoManifestItem(currentPhoto) ? currentPhoto.originalUrl : null) ||
+      null
 
     if (!imageSrc) {
       setIsViewerContentVisible(true)
@@ -251,7 +257,11 @@ export const usePhotoViewerTransitions = ({
       triggerEl instanceof HTMLImageElement && triggerEl.parentElement ? triggerEl.parentElement : triggerEl,
     )
 
-    const imageSrc = currentPhoto.thumbnailUrl || currentBlobSrc || currentPhoto.originalUrl || null
+    const imageSrc =
+      currentPhoto.thumbnailUrl ||
+      currentBlobSrc ||
+      (isPhotoManifestItem(currentPhoto) ? currentPhoto.originalUrl : null) ||
+      null
 
     if (!imageSrc) {
       wasOpenRef.current = false

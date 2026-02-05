@@ -1,4 +1,4 @@
-import type { PhotoManifest } from '~/types/photo'
+import type { MediaManifest } from '~/types/media'
 
 import type { AnimationFrameRect } from './types'
 
@@ -41,7 +41,7 @@ export const getBorderRadius = (element: Element | null) => {
 }
 
 export const computeViewerImageFrame = (
-  photo: PhotoManifest,
+  photo: MediaManifest,
   viewportRect: DOMRect | null,
   isMobile: boolean,
 ): AnimationFrameRect => {
