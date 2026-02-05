@@ -1,5 +1,7 @@
-import type { PhotoManifestItem } from '@afilmory/builder'
+import type { MediaManifestItem, PhotoManifestItem } from '@afilmory/builder'
 import __MANIFEST__ from '@afilmory/data/manifest'
+
+const isPhotoManifestItem = (item: MediaManifestItem): item is PhotoManifestItem => item.kind !== 'video'
 
 class PhotoLoader {
   private photos: PhotoManifestItem[] = []
@@ -10,7 +12,8 @@ class PhotoLoader {
     this.getPhotos = this.getPhotos.bind(this)
     this.getPhoto = this.getPhoto.bind(this)
 
-    this.photos = __MANIFEST__.data as unknown as PhotoManifestItem[]
+    const data = __MANIFEST__.data as unknown as MediaManifestItem[]
+    this.photos = data.filter(isPhotoManifestItem)
 
     this.photos.forEach((photo) => {
       this.photoMap[photo.id] = photo
