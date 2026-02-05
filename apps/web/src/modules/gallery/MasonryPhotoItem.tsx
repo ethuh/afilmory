@@ -1,9 +1,11 @@
 import { Thumbhash } from '@afilmory/ui'
 import clsx from 'clsx'
+import { useSetAtom } from 'jotai'
 import { m } from 'motion/react'
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { mediaResumeTimeAtom } from '~/atoms/media-playback'
 import { useContextPhotos, usePhotoViewer } from '~/hooks/usePhotoViewer'
 import {
   CarbonIsoOutline,
@@ -14,9 +16,11 @@ import {
 import { isMobileDevice } from '~/lib/device-viewport'
 import { ImageLoaderManager } from '~/lib/image-loader-manager'
 import { formatExifData } from '~/modules/metadata'
-import type { PhotoManifest } from '~/types/photo'
+import type { MediaManifest, PhotoManifest, VideoManifestItem } from '~/types/media'
 
-export const MasonryPhotoItem = memo(({ data, width }: { data: PhotoManifest; width: number }) => {
+const isVideoManifestItem = (item: MediaManifest): item is VideoManifestItem => item.kind === 'video'
+
+export const MasonryPhotoItem = memo(({ data, width }: { data: MediaManifest; width: number }) => {
   const photos = useContextPhotos()
   const photoViewer = usePhotoViewer()
   const { t } = useTranslation()
@@ -33,6 +37,7 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: PhotoManifest; wi
   const videoRef = useRef<HTMLVideoElement>(null)
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null)
   const imageLoaderManagerRef = useRef<ImageLoaderManager | null>(null)
+  const setResumeTimes = useSetAtom(mediaResumeTimeAtom)
 
   const handleImageLoad = () => {
     setImageLoaded(true)
@@ -43,6 +48,15 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: PhotoManifest; wi
   }
 
   const handleClick = () => {
+    if (isVideoItem && videoRef.current) {
+      const t = videoRef.current.currentTime
+      if (Number.isFinite(t) && t > 0) {
+        setResumeTimes((prev) => ({
+          ...prev,
+          [data.id]: t,
+        }))
+      }
+    }
     const photoIndex = photos.findIndex((photo) => photo.id === data.id)
     if (photoIndex !== -1) {
       const triggerEl =
@@ -56,18 +70,34 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: PhotoManifest; wi
   const calculatedHeight = width / data.aspectRatio
 
   // 使用共享的 EXIF 格式化函数
-  const exifData = useMemo(() => formatExifData(data.exif ?? null), [data.exif])
+  const exifData = useMemo(
+    () => (isVideoManifestItem(data) ? null : formatExifData((data as PhotoManifest).exif ?? null)),
+    [data],
+  )
 
-  // 检查是否有视频内容（Live Photo 或 Motion Photo）
-  const hasVideo = data.video !== undefined
+  const isVideoItem = isVideoManifestItem(data)
+  // 独立视频条目或（Live/Motion）附加视频都允许 hover 预览
+  const hasAttachedVideo = !isVideoItem && (data as PhotoManifest).video !== undefined
+  const hasPreviewVideo = isVideoItem || hasAttachedVideo
 
   // Live Photo/Motion Photo 视频加载逻辑
   useEffect(() => {
-    if (!data.video || !imageLoaded || livePhotoVideoLoaded || isConvertingVideo || !videoRef.current) {
+    if (
+      isVideoManifestItem(data) ||
+      !(data as PhotoManifest).video ||
+      !imageLoaded ||
+      livePhotoVideoLoaded ||
+      isConvertingVideo ||
+      !videoRef.current
+    ) {
       return
     }
 
-    const { video, originalUrl } = data
+    const { originalUrl } = data as PhotoManifest
+    const {video} = (data as PhotoManifest)
+    if (!video) {
+      return
+    }
 
     const loadVideo = async () => {
       setIsConvertingVideo(true)
@@ -117,12 +147,13 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: PhotoManifest; wi
         imageLoaderManagerRef.current = null
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.video, data.originalUrl, imageLoaded, livePhotoVideoLoaded])
+     
+  }, [data, imageLoaded, livePhotoVideoLoaded, isConvertingVideo])
 
   // Live Photo/Motion Photo hover 处理（仅在桌面端）
   const handleMouseEnter = useCallback(() => {
-    if (isMobileDevice || !hasVideo || !livePhotoVideoLoaded || isPlayingLivePhoto || isConvertingVideo) {
+    const isReady = isVideoItem ? Boolean(videoRef.current) : livePhotoVideoLoaded
+    if (isMobileDevice || !hasPreviewVideo || !isReady || isPlayingLivePhoto || (!isVideoItem && isConvertingVideo)) {
       return
     }
 
@@ -130,11 +161,20 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: PhotoManifest; wi
       setIsPlayingLivePhoto(true)
       const video = videoRef.current
       if (video) {
-        video.currentTime = 0
-        video.play()
+        try {
+          video.currentTime = 0
+        } catch {
+          // ignore
+        }
+        const p = video.play()
+        if (p) {
+          p.catch(() => {
+            setIsPlayingLivePhoto(false)
+          })
+        }
       }
     }, 200) // 200ms hover 延迟
-  }, [hasVideo, livePhotoVideoLoaded, isPlayingLivePhoto, isConvertingVideo])
+  }, [hasPreviewVideo, isVideoItem, livePhotoVideoLoaded, isPlayingLivePhoto, isConvertingVideo])
 
   const handleMouseLeave = useCallback(() => {
     if (hoverTimerRef.current) {
@@ -194,16 +234,18 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: PhotoManifest; wi
         />
       )}
 
-      {/* Live Photo/Motion Photo 视频 */}
-      {hasVideo && (
+      {/* hover 预览视频（独立视频或 Live/Motion） */}
+      {hasPreviewVideo && (
         <video
           ref={videoRef}
           className={clsx(
             'absolute inset-0 h-full w-full object-cover duration-300 group-hover:scale-105',
             isPlayingLivePhoto ? 'z-10' : 'pointer-events-none opacity-0',
           )}
+          src={isVideoItem ? data.previewUrl || data.videoUrl : undefined}
           muted
           playsInline
+          preload="metadata"
           onEnded={handleVideoEnded}
         />
       )}
@@ -218,8 +260,8 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: PhotoManifest; wi
         </div>
       )}
 
-      {/* Live Photo/Motion Photo 标识 */}
-      {hasVideo && (
+      {/* Live Photo/Motion Photo 标识（独立视频不显示该标识） */}
+      {hasAttachedVideo && (
         <div
           className={clsx(
             'absolute z-20 flex items-center space-x-1 rounded-xl bg-black/50 px-1 py-1 text-xs text-white transition-all duration-200 hover:bg-black/70',
@@ -271,7 +313,7 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: PhotoManifest; wi
 
               {/* 基本信息 */}
               <div className="mb-2 flex flex-wrap gap-2 text-xs text-white/80 opacity-0 group-hover:opacity-100">
-                <span>{data.format}</span>
+                <span>{isVideoItem ? 'MP4' : (data as PhotoManifest).format}</span>
                 <span>•</span>
                 <span>
                   {data.width} × {data.height}
