@@ -63,9 +63,11 @@ export type {
   CameraInfo,
   FujiRecipe,
   LensInfo,
+  MediaManifestItem,
   PhotoManifestItem,
   PickedExif,
   ToneAnalysis,
+  VideoManifestItem,
 } from '@afilmory/typing'
 
 ///// Mirgation

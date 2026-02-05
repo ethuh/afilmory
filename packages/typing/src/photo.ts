@@ -56,6 +56,7 @@ export interface ImageMetadata {
 }
 
 export interface PhotoManifestItem extends PhotoInfo {
+  kind?: 'photo'
   id: string
   originalUrl: string
   format: string
@@ -76,6 +77,27 @@ export interface PhotoManifestItem extends PhotoInfo {
   // Video source (Live Photo or Motion Photo)
   video?: VideoSource
 }
+
+export interface VideoManifestItem extends PhotoInfo {
+  kind: 'video'
+  id: string
+  videoUrl: string
+  /** Optional low-res/short preview source for hover playback */
+  previewUrl?: string
+  thumbnailUrl: string
+  ogImageUrl?: string | null
+  thumbHash: string | null
+  width: number
+  height: number
+  aspectRatio: number
+  s3Key: string
+  lastModified: string
+  size: number
+  /** Video duration in milliseconds (optional for backward-compat) */
+  durationMs?: number
+}
+
+export type MediaManifestItem = PhotoManifestItem | VideoManifestItem
 
 export interface ProcessPhotoResult {
   item: PhotoManifestItem | null
