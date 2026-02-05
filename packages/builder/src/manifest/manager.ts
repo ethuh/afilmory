@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path, { basename } from 'node:path'
 
 import { workdir } from '@afilmory/builder/path.js'
-import type { AfilmoryManifest, CameraInfo, LensInfo, PhotoManifestItem  } from '@afilmory/typing'
+import type { AfilmoryManifest, CameraInfo, LensInfo, MediaManifestItem, PhotoManifestItem } from '@afilmory/typing'
 
 import { logger } from '../logger/index.js'
 import type { S3ObjectLike } from '../types/s3.js'
@@ -56,7 +56,7 @@ export function needsUpdate(existingItem: PhotoManifestItem | undefined, s3Objec
 
 // 保存 manifest
 export async function saveManifest(
-  items: PhotoManifestItem[],
+  items: MediaManifestItem[],
   cameras: CameraInfo[] = [],
   lenses: LensInfo[] = [],
 ): Promise<void> {
@@ -83,9 +83,10 @@ export async function saveManifest(
 }
 
 // 检测并处理已删除的图片
-export async function handleDeletedPhotos(items: PhotoManifestItem[]): Promise<number> {
+export async function handleDeletedPhotos(items: MediaManifestItem[]): Promise<number> {
   logger.main.info('🔍 检查已删除的图片...')
-  if (items.length === 0) {
+  const photos = items.filter((item) => item.kind !== 'video')
+  if (photos.length === 0) {
     // Clear all thumbnails
     await fs.rm(path.join(workdir, 'public/thumbnails'), { recursive: true, force: true })
     logger.main.info('🔍 没有图片，清空缩略图...')
@@ -96,7 +97,7 @@ export async function handleDeletedPhotos(items: PhotoManifestItem[]): Promise<n
   const allThumbnails = await fs.readdir(path.join(workdir, 'public/thumbnails'))
 
   // If thumbnails not in manifest, delete it
-  const manifestKeySet = new Set(items.map((item) => item.id))
+  const manifestKeySet = new Set(photos.map((item) => item.id))
 
   for (const thumbnail of allThumbnails) {
     if (!manifestKeySet.has(basename(thumbnail, '.jpg'))) {

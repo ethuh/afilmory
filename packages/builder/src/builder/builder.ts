@@ -1,11 +1,25 @@
+import crypto from 'node:crypto'
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { AfilmoryManifest, CameraInfo, LensInfo, PhotoManifestItem, ProcessPhotoResult } from '@afilmory/typing'
+import type {
+  AfilmoryManifest,
+  CameraInfo,
+  LensInfo,
+  MediaManifestItem,
+  PhotoManifestItem,
+  ProcessPhotoResult,
+  VideoManifestItem,
+} from '@afilmory/typing'
+import { compressUint8Array } from '@afilmory/utils'
+import { execa } from 'execa'
 
+import { generateBlurhash } from '../image/blurhash.js'
 import { thumbnailExists } from '../image/thumbnail.js'
 import { logger } from '../logger/index.js'
 import { handleDeletedPhotos, loadExistingManifest, needsUpdate, saveManifest } from '../manifest/manager.js'
 import { CURRENT_MANIFEST_VERSION } from '../manifest/version.js'
+import { workdir } from '../path.js'
 import type { PhotoProcessorOptions } from '../photo/processor.js'
 import { processPhoto } from '../photo/processor.js'
 import type { PluginRunState } from '../plugins/manager.js'
@@ -22,6 +36,78 @@ import type { BuilderConfig, UserBuilderSettings } from '../types/config.js'
 import { ClusterPool } from '../worker/cluster-pool.js'
 import type { TaskCompletedPayload } from '../worker/pool.js'
 import { WorkerPool } from '../worker/pool.js'
+
+const isPhotoManifestItem = (item: MediaManifestItem): item is PhotoManifestItem => item.kind !== 'video'
+
+const isMp4Key = (key: string) => path.extname(key).toLowerCase() === '.mp4'
+
+const THUMBNAIL_DIR = path.join(workdir, 'public/thumbnails')
+
+async function ensureThumbnailDir(): Promise<void> {
+  await fs.mkdir(THUMBNAIL_DIR, { recursive: true })
+}
+
+async function generateVideoThumbnail(
+  inputPath: string,
+  id: string,
+): Promise<{ url: string; thumbHash: string | null }> {
+  await ensureThumbnailDir()
+
+  const filename = `${id}.jpg`
+  const outPath = path.join(THUMBNAIL_DIR, filename)
+  const url = `/thumbnails/${filename}`
+
+  try {
+    await fs.access(outPath)
+  } catch {
+    try {
+      await execa('ffmpeg', [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-y',
+        '-ss',
+        '1',
+        '-i',
+        inputPath,
+        '-frames:v',
+        '1',
+        '-vf',
+        'scale=600:-2',
+        '-q:v',
+        '3',
+        outPath,
+      ])
+    } catch {
+      // Fallback for very short videos
+      await execa('ffmpeg', [
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-y',
+        '-ss',
+        '0',
+        '-i',
+        inputPath,
+        '-frames:v',
+        '1',
+        '-vf',
+        'scale=600:-2',
+        '-q:v',
+        '3',
+        outPath,
+      ])
+    }
+  }
+
+  try {
+    const buf = await fs.readFile(outPath)
+    const hash = await generateBlurhash(buf)
+    return { url, thumbHash: hash ? compressUint8Array(hash) : null }
+  } catch {
+    return { url, thumbHash: null }
+  }
+}
 
 export interface BuilderOptions {
   isForceMode: boolean
@@ -113,7 +199,7 @@ export class AfilmoryBuilder {
 
       // 读取现有的 manifest（如果存在）
       const existingManifest = await this.loadExistingManifest(options)
-      const existingManifestItems = existingManifest.data
+      const existingManifestItems = existingManifest.data.filter(isPhotoManifestItem)
       const existingManifestMap = new Map(existingManifestItems.map((item) => [item.s3Key, item]))
 
       await this.emitPluginEvent(runState, 'afterManifestLoad', {
@@ -133,6 +219,8 @@ export class AfilmoryBuilder {
       const allObjects = await storageManager.listAllFiles()
       logger.main.info(`存储中找到 ${allObjects.length} 个文件`)
 
+      const livePhotoVideoKeySet = new Set<string>()
+
       await this.emitPluginEvent(runState, 'afterAllFilesListed', {
         options,
         allObjects,
@@ -143,6 +231,16 @@ export class AfilmoryBuilder {
       if (this.config.system.processing.enableLivePhotoDetection) {
         logger.main.info(`检测到 ${livePhotoMap.size} 个 Live Photo`)
       }
+
+      for (const obj of livePhotoMap.values()) {
+        if (obj?.key) {
+          livePhotoVideoKeySet.add(obj.key)
+        }
+      }
+
+      const videoObjects = allObjects.filter(
+        (obj) => obj?.key && isMp4Key(obj.key) && !livePhotoVideoKeySet.has(obj.key),
+      )
 
       await this.emitPluginEvent(runState, 'afterLivePhotoDetection', {
         options,
@@ -158,8 +256,8 @@ export class AfilmoryBuilder {
         imageObjects,
       })
 
-      if (imageObjects.length === 0) {
-        logger.main.error('❌ 没有找到需要处理的照片')
+      if (imageObjects.length === 0 && videoObjects.length === 0) {
+        logger.main.error('❌ 没有找到需要处理的照片/视频')
         const result: BuilderResult = {
           hasUpdates: false,
           newCount: 0,
@@ -442,6 +540,52 @@ export class AfilmoryBuilder {
       const cameras = this.generateCameraCollection(manifest)
       const lenses = this.generateLensCollection(manifest)
 
+      const videoItems: VideoManifestItem[] = []
+      for (const obj of videoObjects) {
+        const {key} = obj
+        const id = this.generateMediaId(key)
+        const url = await storageManager.generatePublicUrl(key)
+        const lastModified = obj.lastModified?.toISOString() || new Date().toISOString()
+        const size = obj.size || 0
+
+        let thumbnailUrl = '/video-placeholder.svg'
+        let thumbHash: string | null = null
+
+        const storage = this.getStorageConfig()
+        if (storage.provider === 'local' && 'basePath' in storage && typeof storage.basePath === 'string') {
+          const abs = path.join(storage.basePath, key)
+          try {
+            const result = await generateVideoThumbnail(abs, id)
+            thumbnailUrl = result.url
+            thumbHash = result.thumbHash
+          } catch {
+            // keep placeholder
+          }
+        }
+
+        videoItems.push({
+          kind: 'video',
+          id,
+          title: path.basename(key, path.extname(key)),
+          description: '',
+          dateTaken: lastModified,
+          tags: [],
+          videoUrl: url,
+          previewUrl: undefined,
+          thumbnailUrl,
+          ogImageUrl: null,
+          thumbHash,
+          width: 16,
+          height: 9,
+          aspectRatio: 16 / 9,
+          s3Key: key,
+          lastModified,
+          size,
+        })
+      }
+
+      const mediaManifest: MediaManifestItem[] = [...manifest, ...videoItems]
+
       await this.emitPluginEvent(runState, 'beforeSaveManifest', {
         options,
         manifest,
@@ -449,7 +593,7 @@ export class AfilmoryBuilder {
         lenses,
       })
 
-      await saveManifest(manifest, cameras, lenses)
+      await saveManifest(mediaManifest, cameras, lenses)
 
       await this.emitPluginEvent(runState, 'afterSaveManifest', {
         options,
@@ -496,6 +640,18 @@ export class AfilmoryBuilder {
       })
       throw error
     }
+  }
+
+  private generateMediaId(key: string): string {
+    const baseName = path.basename(key, path.extname(key))
+    const suffixLength = this.config.system.processing.digestSuffixLength
+    if (!suffixLength || suffixLength <= 0) {
+      return baseName
+    }
+
+    const sha256 = crypto.createHash('sha256').update(key).digest('hex')
+    const digestSuffix = sha256.slice(0, suffixLength)
+    return `${baseName}_${digestSuffix}`
   }
 
   private async loadExistingManifest(options: BuilderOptions): Promise<AfilmoryManifest> {

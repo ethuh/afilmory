@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a0a0a"/>
+      <stop offset="1" stop-color="#1a1a1a"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.00"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="800" height="450" fill="url(#bg)"/>
+  <rect x="0" y="0" width="800" height="450" fill="url(#glow)"/>
+  <rect x="40" y="40" width="720" height="370" rx="24" fill="#000" fill-opacity="0.25" stroke="#fff" stroke-opacity="0.10"/>
+  <circle cx="400" cy="225" r="64" fill="#fff" fill-opacity="0.12"/>
+  <path d="M 385 195 L 385 255 L 445 225 Z" fill="#fff" fill-opacity="0.85"/>
+  <text x="54" y="410" fill="#fff" fill-opacity="0.55" font-family="ui-sans-serif, system-ui, -apple-system" font-size="14">Video</text>
+</svg>

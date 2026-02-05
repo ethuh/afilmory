@@ -7,10 +7,12 @@ import type { ManifestMigrator, MigrationContext } from '../migrate'
 
 export const migrateV9ToV10: ManifestMigrator = (raw: AfilmoryManifest, _ctx: MigrationContext) => {
   raw.data.forEach((item) => {
+    if (item.kind === 'video') return
     if (!item.exif) return
-    if ((item.exif.GPSAltitudeRef as any) === 'Below Sea Level') {
+    const ref = item.exif.GPSAltitudeRef as unknown
+    if (ref === 'Below Sea Level') {
       item.exif.GPSAltitudeRef = 1
-    } else {
+    } else if (ref === 'Above Sea Level') {
       item.exif.GPSAltitudeRef = 0
     }
   })
