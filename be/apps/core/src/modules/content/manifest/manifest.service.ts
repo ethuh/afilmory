@@ -1,4 +1,4 @@
-import type { AfilmoryManifest, CameraInfo, LensInfo, PhotoManifestItem } from '@afilmory/builder'
+import type { AfilmoryManifest, CameraInfo, LensInfo, MediaManifestItem, PhotoManifestItem } from '@afilmory/builder'
 import { CURRENT_MANIFEST_VERSION, migrateManifest } from '@afilmory/builder'
 import type { ManifestVersion } from '@afilmory/builder/manifest/version.js'
 import type { PhotoAssetManifest } from '@afilmory/db'
@@ -88,11 +88,15 @@ export class ManifestService {
       lenses: [],
     })
 
-    const cameras = this.buildCameraCollection(manifest.data)
-    const lenses = this.buildLensCollection(manifest.data)
+    const photos = (manifest.data as MediaManifestItem[]).filter(
+      (item): item is PhotoManifestItem => item.kind !== 'video',
+    )
+    const cameras = this.buildCameraCollection(photos)
+    const lenses = this.buildLensCollection(photos)
 
     return {
       ...manifest,
+      data: photos,
       cameras,
       lenses,
     }
