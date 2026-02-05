@@ -1,7 +1,9 @@
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { PhotoManifest } from '~/types/photo'
+import type { MediaManifest, PhotoManifest } from '~/types/media'
+
+const isPhotoManifestItem = (item: MediaManifest): item is PhotoManifest => item.kind !== 'video'
 
 interface DateRange {
   startDate: Date | null
@@ -19,7 +21,7 @@ interface VisibleRange {
  * Hook to calculate the date range of currently visible photos in the viewport
  * Works with masonry onRender callback
  */
-export const useVisiblePhotosDateRange = (_photos: PhotoManifest[]) => {
+export const useVisiblePhotosDateRange = (_photos: MediaManifest[]) => {
   const [dateRange, setDateRange] = useState<DateRange>({
     startDate: null,
     endDate: null,
@@ -29,9 +31,9 @@ export const useVisiblePhotosDateRange = (_photos: PhotoManifest[]) => {
 
   const currentRange = useRef<VisibleRange>({ start: 0, end: 0 })
 
-  const getPhotoDate = useCallback((photo: PhotoManifest): Date => {
+  const getPhotoDate = useCallback((photo: MediaManifest): Date => {
     // 优先使用 EXIF 中的拍摄时间
-    if (photo.exif?.DateTimeOriginal) {
+    if (isPhotoManifestItem(photo) && photo.exif?.DateTimeOriginal) {
       const dateStr = photo.exif.DateTimeOriginal as unknown as string
       // EXIF 日期格式通常是 "YYYY:MM:DD HH:mm:ss"
       const formattedDateStr = dateStr.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3')
@@ -78,7 +80,7 @@ export const useVisiblePhotosDateRange = (_photos: PhotoManifest[]) => {
     [i18n.language],
   )
 
-  const extractLocation = useCallback((photos: PhotoManifest[]): string | undefined => {
+  const extractLocation = useCallback((photos: MediaManifest[]): string | undefined => {
     // 尝试从照片标签中提取位置信息
     for (const photo of photos) {
       // 如果照片有位置标签，优先使用
@@ -126,7 +128,7 @@ export const useVisiblePhotosDateRange = (_photos: PhotoManifest[]) => {
       // 过滤出照片类型的items (排除header等)
       const visiblePhotos = items
         .slice(startIndex, endIndex + 1)
-        .filter((item): item is PhotoManifest => item && typeof item === 'object' && 'id' in item)
+        .filter((item): item is MediaManifest => item && typeof item === 'object' && 'id' in item)
 
       if (visiblePhotos.length === 0) {
         setDateRange({

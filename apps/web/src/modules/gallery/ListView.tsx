@@ -6,10 +6,12 @@ import { useTranslation } from 'react-i18next'
 import { useMobile } from '~/hooks/useMobile'
 import { useContextPhotos, usePhotoViewer } from '~/hooks/usePhotoViewer'
 import { formatExifData } from '~/modules/metadata'
-import type { PhotoManifest } from '~/types/photo'
+import type { MediaManifest, PhotoManifest, VideoManifestItem } from '~/types/media'
+
+const isVideoManifestItem = (item: MediaManifest): item is VideoManifestItem => item.kind === 'video'
 
 interface ListViewProps {
-  photos: PhotoManifest[]
+  photos: MediaManifest[]
 }
 
 export const ListView = ({ photos }: ListViewProps) => {
@@ -50,7 +52,7 @@ export const ListView = ({ photos }: ListViewProps) => {
         }}
       >
         {virtualizer.getVirtualItems().map((virtualItem) => {
-          const photo = photos[virtualItem.index]
+          const item = photos[virtualItem.index]
           const isLast = virtualItem.index === photos.length - 1
 
           return (
@@ -67,10 +69,102 @@ export const ListView = ({ photos }: ListViewProps) => {
                 paddingBottom: isLast ? 0 : `${gap}px`,
               }}
             >
-              <PhotoCard photo={photo} />
+              <MediaCard item={item} />
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+const MediaCard = ({ item }: { item: MediaManifest }) => {
+  if (isVideoManifestItem(item)) {
+    return <VideoCard video={item} />
+  }
+  return <PhotoCard photo={item} />
+}
+
+const VideoCard = ({ video }: { video: VideoManifestItem }) => {
+  const { i18n } = useTranslation()
+  const photos = useContextPhotos()
+  const photoViewer = usePhotoViewer()
+  const imageRef = useRef<HTMLImageElement>(null)
+
+  const handleClick = () => {
+    const index = photos.findIndex((p) => p.id === video.id)
+    if (index !== -1) {
+      const triggerEl =
+        imageRef.current?.parentElement instanceof HTMLElement ? imageRef.current.parentElement : imageRef.current
+
+      photoViewer.openViewer(index, triggerEl ?? undefined)
+    }
+  }
+
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString(i18n.language, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+  }
+
+  return (
+    <div
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleClick()
+        }
+      }}
+      className="group flex flex-col gap-2 overflow-hidden border border-white/5 bg-white/5 p-2 backdrop-blur-sm transition-all duration-200 hover:border-white/10 hover:bg-white/8 lg:h-44 lg:flex-row lg:gap-3"
+    >
+      <div
+        className="relative w-full shrink-0 cursor-pointer overflow-hidden lg:h-full lg:w-56"
+        role="button"
+        tabIndex={0}
+        data-photo-id={video.id}
+        style={{ aspectRatio: video.aspectRatio ? `${video.aspectRatio}` : undefined }}
+      >
+        <img
+          ref={imageRef}
+          src={video.thumbnailUrl}
+          alt={video.title || 'Video'}
+          className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105 lg:object-cover"
+        />
+        {video.tags && video.tags.length > 0 && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap gap-1 p-2">
+            {video.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden py-1 lg:h-full">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <h3 className="mb-1.5 text-sm font-semibold text-white lg:text-base">{video.title}</h3>
+          <div className="space-y-1.5 text-[11px] leading-tight text-white/60 lg:text-xs">
+            <div className="flex items-center gap-1">
+              <i className="i-lucide-calendar text-[10px]" />
+              <span>{formatDate(new Date(video.lastModified).getTime())}</span>
+            </div>
+            {typeof video.durationMs === 'number' && (
+              <div className="flex items-center gap-1">
+                <i className="i-lucide-clock text-[10px]" />
+                <span>{Math.round(video.durationMs / 1000)}s</span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

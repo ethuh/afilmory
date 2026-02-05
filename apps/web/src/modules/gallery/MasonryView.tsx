@@ -3,7 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { gallerySettingAtom } from '~/atoms/app'
 import { useMobile } from '~/hooks/useMobile'
-import type { PhotoManifest } from '~/types/photo'
+import type { MediaManifest } from '~/types/media'
 
 import type { MasonryRef } from './Masonic'
 import { Masonry } from './Masonic'
@@ -26,7 +26,7 @@ const COLUMN_WIDTH_CONFIG = {
 }
 
 interface MasonryViewProps {
-  photos: PhotoManifest[]
+  photos: MediaManifest[]
   onRender?: (startIndex: number, stopIndex: number, items: any[]) => void
 }
 
@@ -82,7 +82,7 @@ export const MasonryView = ({ photos, onRender }: MasonryViewProps) => {
   }, [isMobile, columns, containerWidth])
 
   return (
-    <Masonry<PhotoManifest>
+    <Masonry<MediaManifest>
       ref={masonryRef}
       items={photos}
       render={useCallback(

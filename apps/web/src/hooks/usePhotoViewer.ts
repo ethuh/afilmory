@@ -1,4 +1,4 @@
-import { photoLoader } from '@afilmory/data'
+import { mediaLoader } from '@afilmory/data'
 import { atom, useAtom, useAtomValue } from 'jotai'
 import { use, useCallback, useMemo } from 'react'
 
@@ -6,14 +6,19 @@ import { gallerySettingAtom } from '~/atoms/app'
 import { jotaiStore } from '~/lib/jotai'
 import { trackView } from '~/lib/tracker'
 import { PhotosContext } from '~/providers/photos-provider'
+import type { MediaManifest, PhotoManifest, VideoManifestItem } from '~/types/media'
 
 const openAtom = atom(false)
 const currentIndexAtom = atom(0)
 const triggerElementAtom = atom<HTMLElement | null>(null)
-const data = photoLoader.getPhotos()
 
-// 抽取照片筛选和排序逻辑为独立函数
-const filterAndSortPhotos = (
+const isVideoManifestItem = (item: MediaManifest): item is VideoManifestItem => item.kind === 'video'
+const isPhotoManifestItem = (item: MediaManifest): item is PhotoManifest => !isVideoManifestItem(item)
+
+const data = mediaLoader.getMedia() as unknown as MediaManifest[]
+
+// 抽取媒体筛选和排序逻辑为独立函数
+const filterAndSortMedia = (
   selectedTags: string[],
   selectedCameras: string[],
   selectedLenses: string[],
@@ -22,11 +27,11 @@ const filterAndSortPhotos = (
   tagFilterMode: 'union' | 'intersection' = 'union',
 ) => {
   // 根据 tags、cameras、lenses 和 ratings 筛选
-  let filteredPhotos = data
+  let filteredMedia = data
 
   // Tags 筛选：根据模式进行并集或交集筛选
   if (selectedTags.length > 0) {
-    filteredPhotos = filteredPhotos.filter((photo) => {
+    filteredMedia = filteredMedia.filter((photo) => {
       if (tagFilterMode === 'intersection') {
         // 交集模式：照片必须包含所有选中的标签
         return selectedTags.every((tag) => photo.tags.includes(tag))
@@ -39,19 +44,21 @@ const filterAndSortPhotos = (
 
   // Cameras 筛选：照片的相机必须匹配选中的相机之一
   if (selectedCameras.length > 0) {
-    filteredPhotos = filteredPhotos.filter((photo) => {
-      if (!photo.exif?.Make || !photo.exif?.Model) return false
-      const cameraDisplayName = `${photo.exif.Make.trim()} ${photo.exif.Model.trim()}`
+    filteredMedia = filteredMedia.filter((item) => {
+      if (!isPhotoManifestItem(item)) return false
+      if (!item.exif?.Make || !item.exif?.Model) return false
+      const cameraDisplayName = `${item.exif.Make.trim()} ${item.exif.Model.trim()}`
       return selectedCameras.includes(cameraDisplayName)
     })
   }
 
   // Lenses 筛选：照片的镜头必须匹配选中的镜头之一
   if (selectedLenses.length > 0) {
-    filteredPhotos = filteredPhotos.filter((photo) => {
-      if (!photo.exif?.LensModel) return false
-      const lensModel = photo.exif.LensModel.trim()
-      const lensMake = photo.exif.LensMake?.trim()
+    filteredMedia = filteredMedia.filter((item) => {
+      if (!isPhotoManifestItem(item)) return false
+      if (!item.exif?.LensModel) return false
+      const lensModel = item.exif.LensModel.trim()
+      const lensMake = item.exif.LensMake?.trim()
       const lensDisplayName = lensMake ? `${lensMake} ${lensModel}` : lensModel
       return selectedLenses.includes(lensDisplayName)
     })
@@ -59,40 +66,35 @@ const filterAndSortPhotos = (
 
   // Ratings 筛选：照片的评分必须大于等于选中的最小阈值
   if (selectedRatings !== null) {
-    filteredPhotos = filteredPhotos.filter((photo) => {
-      if (!photo.exif?.Rating) return false
-      return photo.exif.Rating >= selectedRatings
+    filteredMedia = filteredMedia.filter((item) => {
+      if (!isPhotoManifestItem(item)) return false
+      if (!item.exif?.Rating) return false
+      return item.exif.Rating >= selectedRatings
     })
   }
 
   // 然后排序
-  const sortedPhotos = filteredPhotos.toSorted((a, b) => {
-    let aDateStr = ''
-    let bDateStr = ''
-
-    if (a.exif && a.exif.DateTimeOriginal) {
-      aDateStr = a.exif.DateTimeOriginal as unknown as string
-    } else {
-      aDateStr = a.lastModified
+  const getSortDateStr = (item: MediaManifest) => {
+    if (isPhotoManifestItem(item) && item.exif?.DateTimeOriginal) {
+      return item.exif.DateTimeOriginal as unknown as string
     }
+    return item.dateTaken || item.lastModified
+  }
 
-    if (b.exif && b.exif.DateTimeOriginal) {
-      bDateStr = b.exif.DateTimeOriginal as unknown as string
-    } else {
-      bDateStr = b.lastModified
-    }
-
+  const sorted = filteredMedia.toSorted((a, b) => {
+    const aDateStr = getSortDateStr(a)
+    const bDateStr = getSortDateStr(b)
     return sortOrder === 'asc' ? aDateStr.localeCompare(bDateStr) : bDateStr.localeCompare(aDateStr)
   })
 
-  return sortedPhotos
+  return sorted
 }
 
 // 提供一个 getter 函数供非 UI 组件使用
 export const getFilteredPhotos = () => {
   // 直接从 jotaiStore 中读取当前状态
   const currentGallerySetting = jotaiStore.get(gallerySettingAtom)
-  return filterAndSortPhotos(
+  return filterAndSortMedia(
     currentGallerySetting.selectedTags,
     currentGallerySetting.selectedCameras,
     currentGallerySetting.selectedLenses,
@@ -107,7 +109,7 @@ export const usePhotos = () => {
     useAtomValue(gallerySettingAtom)
 
   const masonryItems = useMemo(() => {
-    return filterAndSortPhotos(selectedTags, selectedCameras, selectedLenses, selectedRatings, sortOrder, tagFilterMode)
+    return filterAndSortMedia(selectedTags, selectedCameras, selectedLenses, selectedRatings, sortOrder, tagFilterMode)
   }, [sortOrder, selectedTags, selectedCameras, selectedLenses, selectedRatings, tagFilterMode])
 
   return masonryItems
@@ -127,20 +129,20 @@ export const usePhotoViewer = () => {
   const [currentIndex, setCurrentIndex] = useAtom(currentIndexAtom)
   const [triggerElement, setTriggerElement] = useAtom(triggerElementAtom)
 
-  const id = useMemo(() => {
-    return photos[currentIndex]?.id
-  }, [photos, currentIndex])
   const openViewer = useCallback(
     (index: number, element?: HTMLElement) => {
+      const targetId = photos[index]?.id
       setCurrentIndex(index)
       setTriggerElement(element || null)
       setIsOpen(true)
       // 防止背景滚动
       document.body.style.overflow = 'hidden'
 
-      trackView(id)
+      if (targetId) {
+        trackView(targetId)
+      }
     },
-    [id, setCurrentIndex, setIsOpen, setTriggerElement],
+    [photos, setCurrentIndex, setIsOpen, setTriggerElement],
   )
 
   const closeViewer = useCallback(() => {

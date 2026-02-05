@@ -6,13 +6,13 @@ import { useTranslation } from 'react-i18next'
 
 import { gallerySettingAtom, isCommandPaletteOpenAtom } from '~/atoms/app'
 import { useContextPhotos } from '~/hooks/usePhotoViewer'
-import type { PhotoManifest } from '~/types/photo'
+import type { MediaManifest } from '~/types/media'
 
 import { FilterChips } from './FilterChips'
 import { HeroActions } from './HeroActions'
 
 // 从照片中随机选择一些作为背景拼贴
-const getRandomPhotos = (photos: PhotoManifest[], count = 12): PhotoManifest[] => {
+const getRandomPhotos = (photos: MediaManifest[], count = 12): MediaManifest[] => {
   if (photos.length === 0) return []
   const shuffled = [...photos].sort(() => Math.random() - 0.5)
   return shuffled.slice(0, Math.min(count, photos.length))
@@ -168,7 +168,7 @@ export const ActiveFiltersHero = () => {
               return (
                 <div key={photo.id} className="relative overflow-hidden">
                   <img
-                    src={photo.thumbnailUrl || photo.originalUrl}
+                    src={photo.thumbnailUrl}
                     alt=""
                     className="h-full w-full scale-105 object-cover"
                     loading="lazy"
