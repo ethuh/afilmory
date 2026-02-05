@@ -5,6 +5,8 @@ import 'swiper/css/navigation'
 
 import { Thumbhash } from '@afilmory/ui'
 import { Spring } from '@afilmory/utils'
+import clsx from 'clsx'
+import { useAtom, useAtomValue } from 'jotai'
 import { AnimatePresence, m } from 'motion/react'
 import { Fragment, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,12 +14,13 @@ import type { Swiper as SwiperType } from 'swiper'
 import { Keyboard, Navigation, Virtual } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
 
+import { mediaResumeTimeAtom, mediaSoundEnabledAtom, mediaVolumeAtom } from '~/atoms/media-playback'
 import { useMobile } from '~/hooks/useMobile'
 import type { LoadingIndicatorRef } from '~/modules/inspector/LoadingIndicator'
 import { LoadingIndicator } from '~/modules/inspector/LoadingIndicator'
 import { PhotoInspector } from '~/modules/inspector/PhotoInspector'
 import { ShareModal } from '~/modules/social/ShareModal'
-import type { PhotoManifest } from '~/types/photo'
+import type { MediaManifest, PhotoManifest, VideoManifestItem } from '~/types/media'
 
 import { ReactionRail } from '../social'
 import { PhotoViewerTransitionPreview } from './animations/PhotoViewerTransitionPreview'
@@ -26,13 +29,16 @@ import { GalleryThumbnail } from './GalleryThumbnail'
 import { ProgressiveImage } from './ProgressiveImage'
 
 interface PhotoViewerProps {
-  photos: PhotoManifest[]
+  photos: MediaManifest[]
   currentIndex: number
   isOpen: boolean
   onClose: () => void
   onIndexChange: (index: number) => void
   triggerElement: HTMLElement | null
 }
+
+const isVideoManifestItem = (item: MediaManifest): item is VideoManifestItem => item.kind === 'video'
+const isPhotoManifestItem = (item: MediaManifest): item is PhotoManifest => !isVideoManifestItem(item)
 
 export const PhotoViewer = ({
   photos,
@@ -49,7 +55,17 @@ export const PhotoViewer = ({
   const [isInspectorVisible, setIsInspectorVisible] = useState(!isMobile)
   const [currentBlobSrc, setCurrentBlobSrc] = useState<string | null>(null)
 
-  const currentPhoto = photos[currentIndex]
+  const [isWideMode, setIsWideMode] = useState(false)
+  const [isWebFullscreenMode, setIsWebFullscreenMode] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useAtom(mediaSoundEnabledAtom)
+  const [volume, setVolume] = useAtom(mediaVolumeAtom)
+  const resumeTimes = useAtomValue(mediaResumeTimeAtom)
+
+  const activeVideoRef = useRef<HTMLVideoElement | null>(null)
+
+  const currentItem = photos[currentIndex]
+  const isCurrentVideo = Boolean(currentItem && isVideoManifestItem(currentItem))
+  const isCurrentPhoto = Boolean(currentItem && isPhotoManifestItem(currentItem))
 
   const {
     containerRef,
@@ -65,7 +81,7 @@ export const PhotoViewer = ({
   } = usePhotoViewerTransitions({
     isOpen,
     triggerElement,
-    currentPhoto,
+    currentPhoto: currentItem,
     currentBlobSrc,
     isMobile,
   })
@@ -75,8 +91,29 @@ export const PhotoViewer = ({
       setIsImageZoomed(false)
       setIsInspectorVisible(!isMobile)
       setCurrentBlobSrc(null)
+      setIsWideMode(false)
+      setIsWebFullscreenMode(false)
+      activeVideoRef.current = null
     }
   }, [isMobile, isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    if (!currentItem) return
+    if (isVideoManifestItem(currentItem)) {
+      setIsInspectorVisible(false)
+    } else {
+      setIsInspectorVisible(!isMobile)
+      setIsWideMode(false)
+      setIsWebFullscreenMode(false)
+    }
+  }, [currentItem, isMobile, isOpen])
+
+  useEffect(() => {
+    if (isWebFullscreenMode) {
+      setIsInspectorVisible(false)
+    }
+  }, [isWebFullscreenMode])
 
   const handlePrevious = useCallback(() => {
     if (currentIndex > 0) {
@@ -155,9 +192,41 @@ export const PhotoViewer = ({
     }
   }, [isOpen, handlePrevious, handleNext, onClose])
 
-  if (!currentPhoto) return null
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+        return
+      }
+
+      const container = containerRef.current
+      if (container?.requestFullscreen) {
+        await container.requestFullscreen()
+        return
+      }
+
+      const videoEl = activeVideoRef.current as any
+      if (typeof videoEl?.webkitEnterFullscreen === 'function') {
+        videoEl.webkitEnterFullscreen()
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const enableSound = useCallback(() => {
+    setSoundEnabled(true)
+    const el = activeVideoRef.current
+    if (el) {
+      el.muted = false
+      el.volume = volume
+    }
+  }, [setSoundEnabled, volume])
+
+  if (!currentItem) return null
 
   const currentThumbHash = transitionThumbHash
+  const currentPhoto = isCurrentPhoto ? (currentItem as PhotoManifest) : null
 
   return (
     <>
@@ -178,7 +247,7 @@ export const PhotoViewer = ({
       <AnimatePresence mode="sync">
         {shouldRenderThumbhash && (
           <m.div
-            key={`${currentPhoto.id}-thumbhash`}
+            key={`${currentItem.id}-thumbhash`}
             initial={{ opacity: 0 }}
             animate={{ opacity: isOpen ? 1 : 0 }}
             exit={{ opacity: 0 }}
@@ -231,27 +300,84 @@ export const PhotoViewer = ({
                           <i className="i-mingcute-information-line" />
                         </button>
                       )}
+
+                      {isCurrentVideo && (
+                        <Fragment>
+                          {!soundEnabled && (
+                            <button
+                              type="button"
+                              className="bg-material-ultra-thick pointer-events-auto flex h-8 items-center gap-1 rounded-full px-3 text-white backdrop-blur-2xl duration-200 hover:bg-black/40"
+                              onClick={enableSound}
+                              title="Unmute"
+                            >
+                              <i className="i-lucide-volume-x text-sm" />
+                              <span className="text-xs">Sound</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            className={clsx(
+                              'bg-material-ultra-thick pointer-events-auto flex size-8 items-center justify-center rounded-full text-white backdrop-blur-2xl duration-200 hover:bg-black/40',
+                              isWideMode && 'bg-accent',
+                            )}
+                            onClick={() => {
+                              setIsWideMode((v) => !v)
+                              setIsWebFullscreenMode(false)
+                            }}
+                            title="Widescreen"
+                          >
+                            <i className="i-lucide-rectangle-horizontal text-sm" />
+                          </button>
+
+                          <button
+                            type="button"
+                            className={clsx(
+                              'bg-material-ultra-thick pointer-events-auto flex size-8 items-center justify-center rounded-full text-white backdrop-blur-2xl duration-200 hover:bg-black/40',
+                              isWebFullscreenMode && 'bg-accent',
+                            )}
+                            onClick={() => {
+                              setIsWebFullscreenMode((v) => !v)
+                              setIsWideMode(false)
+                            }}
+                            title="Web Fullscreen"
+                          >
+                            <i className="i-lucide-maximize text-sm" />
+                          </button>
+
+                          <button
+                            type="button"
+                            className="bg-material-ultra-thick pointer-events-auto flex size-8 items-center justify-center rounded-full text-white backdrop-blur-2xl duration-200 hover:bg-black/40"
+                            onClick={toggleFullscreen}
+                            title="Fullscreen"
+                          >
+                            <i className="i-lucide-maximize-2 text-sm" />
+                          </button>
+                        </Fragment>
+                      )}
                     </div>
 
                     {/* 右侧按钮组 */}
                     <div className="flex items-center gap-2">
                       {/* 分享按钮 */}
-                      <ShareModal
-                        photo={currentPhoto}
-                        blobSrc={currentBlobSrc || undefined}
-                        trigger={
-                          <button
-                            type="button"
-                            className="bg-material-ultra-thick pointer-events-auto flex size-8 items-center justify-center rounded-full text-white backdrop-blur-2xl duration-200 hover:bg-black/40"
-                            title={t('photo.share.title')}
-                          >
-                            <i className="i-mingcute-share-2-line" />
-                          </button>
-                        }
-                      />
+                      {isCurrentPhoto && (
+                        <ShareModal
+                          photo={currentItem as PhotoManifest}
+                          blobSrc={currentBlobSrc || undefined}
+                          trigger={
+                            <button
+                              type="button"
+                              className="bg-material-ultra-thick pointer-events-auto flex size-8 items-center justify-center rounded-full text-white backdrop-blur-2xl duration-200 hover:bg-black/40"
+                              title={t('photo.share.title')}
+                            >
+                              <i className="i-mingcute-share-2-line" />
+                            </button>
+                          }
+                        />
+                      )}
 
                       {/* 展开信息面板（桌面端在折叠时显示） */}
-                      {!isMobile && !isInspectorVisible && (
+                      {!isMobile && !isInspectorVisible && isCurrentPhoto && (
                         <button
                           type="button"
                           className="bg-material-ultra-thick pointer-events-auto flex size-8 items-center justify-center rounded-full text-white backdrop-blur-2xl duration-200 hover:bg-black/40"
@@ -297,12 +423,15 @@ export const PhotoViewer = ({
                     className="h-full w-full"
                     style={{ touchAction: isMobile ? 'pan-x' : 'pan-y' }}
                   >
-                    {photos.map((photo, index) => {
-                      const isCurrentImage = index === currentIndex
-                      const hideCurrentImage = isEntryAnimating && isCurrentImage
+                    {photos.map((item, index) => {
+                      const isCurrentSlide = index === currentIndex
+                      const hideCurrentSlide = isEntryAnimating && isCurrentSlide
+                      const isVideo = isVideoManifestItem(item)
+                      const resumeAt = isVideo ? resumeTimes[item.id] : undefined
+
                       return (
-                        <SwiperSlide key={photo.id} className="flex items-center justify-center" virtualIndex={index}>
-                          <ReactionRail photoId={photo.id} />
+                        <SwiperSlide key={item.id} className="flex items-center justify-center" virtualIndex={index}>
+                          {!isVideo && <ReactionRail photoId={item.id} />}
                           <m.div
                             initial={{ opacity: 0.5, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
@@ -310,44 +439,69 @@ export const PhotoViewer = ({
                             transition={Spring.presets.smooth}
                             className="relative flex h-full w-full items-center justify-center"
                             style={{
-                              visibility: hideCurrentImage ? 'hidden' : 'visible',
+                              visibility: hideCurrentSlide ? 'hidden' : 'visible',
                             }}
                           >
-                            <ProgressiveImage
-                              loadingIndicatorRef={loadingIndicatorRef}
-                              isCurrentImage={isCurrentImage}
-                              src={photo.originalUrl}
-                              thumbnailSrc={photo.thumbnailUrl}
-                              alt={photo.title}
-                              width={isCurrentImage ? currentPhoto.width : undefined}
-                              height={isCurrentImage ? currentPhoto.height : undefined}
-                              className="h-full w-full object-contain"
-                              enablePan={isCurrentImage ? !isMobile || isImageZoomed : true}
-                              enableZoom={true}
-                              shouldRenderHighRes={isViewerContentVisible && isOpen}
-                              onZoomChange={isCurrentImage ? handleZoomChange : undefined}
-                              onBlobSrcChange={isCurrentImage ? handleBlobSrcChange : undefined}
-                              // Video source (Live Photo or Motion Photo)
-                              videoSource={
-                                photo.video?.type === 'motion-photo'
-                                  ? {
-                                      type: 'motion-photo',
+                            {isVideo ? (
+                              <VideoSlide
+                                video={item}
+                                isCurrent={isCurrentSlide}
+                                isOpen={isOpen && isViewerContentVisible}
+                                resumeAt={resumeAt}
+                                soundEnabled={soundEnabled}
+                                volume={volume}
+                                onVolumeChange={setVolume}
+                                onActiveVideoChange={(el) => {
+                                  if (isCurrentSlide) {
+                                    activeVideoRef.current = el
+                                  }
+                                }}
+                                fit={isWideMode ? 'cover' : 'contain'}
+                              />
+                            ) : (
+                              <ProgressiveImage
+                                loadingIndicatorRef={loadingIndicatorRef}
+                                isCurrentImage={isCurrentSlide}
+                                src={(item as PhotoManifest).originalUrl}
+                                thumbnailSrc={(item as PhotoManifest).thumbnailUrl}
+                                alt={(item as PhotoManifest).title}
+                                width={isCurrentSlide ? (item as PhotoManifest).width : undefined}
+                                height={isCurrentSlide ? (item as PhotoManifest).height : undefined}
+                                className="h-full w-full object-contain"
+                                enablePan={isCurrentSlide ? !isMobile || isImageZoomed : true}
+                                enableZoom={true}
+                                shouldRenderHighRes={isViewerContentVisible && isOpen}
+                                onZoomChange={isCurrentSlide ? handleZoomChange : undefined}
+                                onBlobSrcChange={isCurrentSlide ? handleBlobSrcChange : undefined}
+                                // Video source (Live Photo or Motion Photo)
+                                videoSource={(() => {
+                                  const photo = item as PhotoManifest
+                                  const v = photo.video
+
+                                  if (v?.type === 'motion-photo') {
+                                    return {
+                                      type: 'motion-photo' as const,
                                       imageUrl: photo.originalUrl,
-                                      offset: photo.video.offset,
-                                      size: photo.video.size,
-                                      presentationTimestamp: photo.video.presentationTimestamp,
+                                      offset: v.offset,
+                                      size: v.size,
+                                      presentationTimestamp: v.presentationTimestamp,
                                     }
-                                  : photo.video?.type === 'live-photo'
-                                    ? {
-                                        type: 'live-photo',
-                                        videoUrl: photo.video.videoUrl,
-                                      }
-                                    : { type: 'none' }
-                              }
-                              shouldAutoPlayVideoOnce={isCurrentImage}
-                              // HDR props
-                              isHDR={photo.isHDR}
-                            />
+                                  }
+
+                                  if (v?.type === 'live-photo') {
+                                    return {
+                                      type: 'live-photo' as const,
+                                      videoUrl: v.videoUrl,
+                                    }
+                                  }
+
+                                  return { type: 'none' as const }
+                                })()}
+                                shouldAutoPlayVideoOnce={isCurrentSlide}
+                                // HDR props
+                                isHDR={(item as PhotoManifest).isHDR}
+                              />
+                            )}
                           </m.div>
                         </SwiperSlide>
                       )
@@ -381,21 +535,23 @@ export const PhotoViewer = ({
                   )}
                 </m.div>
 
-                <Suspense>
-                  <GalleryThumbnail
-                    currentIndex={currentIndex}
-                    photos={photos}
-                    onIndexChange={onIndexChange}
-                    visible={isViewerContentVisible}
-                  />
-                </Suspense>
+                {!isWebFullscreenMode && (
+                  <Suspense>
+                    <GalleryThumbnail
+                      currentIndex={currentIndex}
+                      photos={photos}
+                      onIndexChange={onIndexChange}
+                      visible={isViewerContentVisible}
+                    />
+                  </Suspense>
+                )}
               </div>
 
               {/* PhotoInspector - 根据设备与折叠状态展示 */}
 
               <Suspense>
                 <AnimatePresenceOnlyMobile>
-                  {isInspectorVisible && (
+                  {isInspectorVisible && isCurrentPhoto && currentPhoto && (
                     <PhotoInspector
                       currentPhoto={currentPhoto}
                       exifData={currentPhoto.exif}
@@ -424,6 +580,123 @@ export const PhotoViewer = ({
         />
       )}
     </>
+  )
+}
+
+const VideoSlide = ({
+  video,
+  isCurrent,
+  isOpen,
+  resumeAt,
+  soundEnabled,
+  volume,
+  onVolumeChange,
+  onActiveVideoChange,
+  fit,
+}: {
+  video: VideoManifestItem
+  isCurrent: boolean
+  isOpen: boolean
+  resumeAt?: number
+  soundEnabled: boolean
+  volume: number
+  onVolumeChange: (volume: number) => void
+  onActiveVideoChange: (el: HTMLVideoElement | null) => void
+  fit: 'contain' | 'cover'
+}) => {
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const hasAppliedResumeRef = useRef(false)
+
+  useEffect(() => {
+    if (isCurrent) {
+      onActiveVideoChange(videoRef.current)
+      return () => {
+        onActiveVideoChange(null)
+      }
+    }
+    return
+  }, [isCurrent, onActiveVideoChange])
+
+  useEffect(() => {
+    if (!isCurrent) {
+      hasAppliedResumeRef.current = false
+    }
+  }, [isCurrent, video.id])
+
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el) return
+    el.muted = !soundEnabled
+    el.volume = volume
+  }, [soundEnabled, volume])
+
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el) return
+
+    const handleVolumeChange = () => {
+      onVolumeChange(el.volume)
+    }
+
+    el.addEventListener('volumechange', handleVolumeChange)
+    return () => {
+      el.removeEventListener('volumechange', handleVolumeChange)
+    }
+  }, [onVolumeChange])
+
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el) return
+
+    if (!isCurrent || !isOpen) {
+      el.pause()
+      return
+    }
+
+    const maybeSeekAndPlay = async () => {
+      if (!hasAppliedResumeRef.current && typeof resumeAt === 'number' && Number.isFinite(resumeAt) && resumeAt > 0) {
+        try {
+          el.currentTime = resumeAt
+        } catch {
+          // ignore
+        }
+        hasAppliedResumeRef.current = true
+      }
+
+      try {
+        await el.play()
+      } catch {
+        // Autoplay can be blocked even when muted; user gesture will start it.
+      }
+    }
+
+    const handleLoadedMetadata = () => {
+      void maybeSeekAndPlay()
+    }
+
+    el.addEventListener('loadedmetadata', handleLoadedMetadata)
+    if (el.readyState >= 1) {
+      void maybeSeekAndPlay()
+    }
+
+    return () => {
+      el.removeEventListener('loadedmetadata', handleLoadedMetadata)
+    }
+  }, [isCurrent, isOpen, resumeAt])
+
+  return (
+    <div className="relative flex h-full w-full items-center justify-center bg-black">
+      <video
+        ref={videoRef}
+        src={video.videoUrl}
+        poster={video.thumbnailUrl}
+        className={clsx('h-full w-full', fit === 'cover' ? 'object-cover' : 'object-contain')}
+        playsInline
+        muted={!soundEnabled}
+        controls
+        preload="metadata"
+      />
+    </div>
   )
 }
 
