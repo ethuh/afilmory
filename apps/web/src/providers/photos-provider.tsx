@@ -1,9 +1,9 @@
 import { createContext } from 'react'
 
-import type { PhotoManifest } from '~/types/photo'
+import type { MediaManifest } from '~/types/media'
 
-export const PhotosContext = createContext<PhotoManifest[]>(null!)
+export const PhotosContext = createContext<MediaManifest[]>(null!)
 
-export const PhotosProvider = ({ children, photos }: { children: React.ReactNode; photos: PhotoManifest[] }) => {
+export const PhotosProvider = ({ children, photos }: { children: React.ReactNode; photos: MediaManifest[] }) => {
   return <PhotosContext value={photos}>{children}</PhotosContext>
 }
