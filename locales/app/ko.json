@@ -386,5 +386,6 @@
   "video.conversion.webcodecs.not.supported": "이 브라우저는 WebCodecs 를 지원하지 않습니다",
   "video.format.mov.not.supported": "브라우저가 MOV 형식을 지원하지 않아 변환이 필요합니다.",
   "video.format.mov.supported": "브라우저가 MOV 형식을 기본적으로 지원하므로 변환을 건너뜁니다.",
+  "video.info.duration": "길이",
   "video.motion-photo.extracting": "내장된 비디오 추출 중..."
 }

@@ -416,5 +416,6 @@
   "video.conversion.webcodecs.not.supported": "此浏览器不支持 WebCodecs",
   "video.format.mov.not.supported": "浏览器不支持 MOV 格式，需要转换",
   "video.format.mov.supported": "浏览器原生支持 MOV 格式，跳过转换",
+  "video.info.duration": "时长",
   "video.motion-photo.extracting": "正在提取嵌入的视频..."
 }

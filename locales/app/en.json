@@ -419,5 +419,6 @@
   "video.conversion.webcodecs.not.supported": "WebCodecs is not supported in this browser",
   "video.format.mov.not.supported": "Browser does not support MOV format, conversion required",
   "video.format.mov.supported": "Browser natively supports MOV format, skipping conversion",
+  "video.info.duration": "Duration",
   "video.motion-photo.extracting": "Extracting embedded video..."
 }
