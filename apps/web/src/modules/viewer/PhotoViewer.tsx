@@ -19,6 +19,7 @@ import { useMobile } from '~/hooks/useMobile'
 import type { LoadingIndicatorRef } from '~/modules/inspector/LoadingIndicator'
 import { LoadingIndicator } from '~/modules/inspector/LoadingIndicator'
 import { PhotoInspector } from '~/modules/inspector/PhotoInspector'
+import { VideoInspector } from '~/modules/inspector/VideoInspector'
 import { ShareModal } from '~/modules/social/ShareModal'
 import type { MediaManifest, PhotoManifest, VideoManifestItem } from '~/types/media'
 
@@ -100,10 +101,8 @@ export const PhotoViewer = ({
   useEffect(() => {
     if (!isOpen) return
     if (!currentItem) return
-    if (isVideoManifestItem(currentItem)) {
-      setIsInspectorVisible(false)
-    } else {
-      setIsInspectorVisible(!isMobile)
+    setIsInspectorVisible(!isMobile)
+    if (!isVideoManifestItem(currentItem)) {
       setIsWideMode(false)
       setIsWebFullscreenMode(false)
     }
@@ -227,6 +226,7 @@ export const PhotoViewer = ({
 
   const currentThumbHash = transitionThumbHash
   const currentPhoto = isCurrentPhoto ? (currentItem as PhotoManifest) : null
+  const currentVideo = isCurrentVideo ? (currentItem as VideoManifestItem) : null
 
   return (
     <>
@@ -377,7 +377,7 @@ export const PhotoViewer = ({
                       )}
 
                       {/* 展开信息面板（桌面端在折叠时显示） */}
-                      {!isMobile && !isInspectorVisible && isCurrentPhoto && (
+                      {!isMobile && !isInspectorVisible && (isCurrentPhoto || isCurrentVideo) && (
                         <button
                           type="button"
                           className="bg-material-ultra-thick pointer-events-auto flex size-8 items-center justify-center rounded-full text-white backdrop-blur-2xl duration-200 hover:bg-black/40"
@@ -555,6 +555,13 @@ export const PhotoViewer = ({
                     <PhotoInspector
                       currentPhoto={currentPhoto}
                       exifData={currentPhoto.exif}
+                      visible={isInspectorVisible && isViewerContentVisible}
+                      onClose={() => setIsInspectorVisible(false)}
+                    />
+                  )}
+                  {isInspectorVisible && isCurrentVideo && currentVideo && (
+                    <VideoInspector
+                      currentVideo={currentVideo}
                       visible={isInspectorVisible && isViewerContentVisible}
                       onClose={() => setIsInspectorVisible(false)}
                     />
