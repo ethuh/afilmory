@@ -25,7 +25,7 @@ import { ActionIconButton, resolveSocialUrl } from './utils'
 export const PageHeaderRight = () => {
   const { t } = useTranslation()
   const isMobile = useMobile()
-  const [gallerySetting] = useAtom(gallerySettingAtom)
+  const [gallerySetting, setGallerySetting] = useAtom(gallerySettingAtom)
   const setCommandPaletteOpen = useSetAtom(isCommandPaletteOpenAtom)
   const navigate = useNavigate()
   const sessionUser = useAtomValue(sessionUserAtom)
@@ -49,6 +49,11 @@ export const PageHeaderRight = () => {
           title={t('action.search.unified.title')}
           onClick={() => setCommandPaletteOpen(true)}
           badge={filterCount}
+        />
+
+        <MediaKindMenu
+          mediaKind={gallerySetting.mediaKind}
+          onChange={(kind) => setGallerySetting((p) => ({ ...p, mediaKind: kind }))}
         />
 
         {/* Desktop only: Map Link */}
@@ -88,6 +93,62 @@ export const PageHeaderRight = () => {
         </div>
       )}
     </div>
+  )
+}
+
+const MediaKindMenu = ({
+  mediaKind,
+  onChange,
+}: {
+  mediaKind: 'all' | 'photo' | 'video'
+  onChange: (kind: 'all' | 'photo' | 'video') => void
+}) => {
+  const { t } = useTranslation()
+
+  const icon =
+    mediaKind === 'photo'
+      ? 'i-mingcute-camera-2-line'
+      : mediaKind === 'video'
+        ? 'i-mingcute-video-line'
+        : 'i-mingcute-grid-line'
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="relative flex size-7 items-center justify-center rounded text-white/60 transition-colors duration-200 hover:bg-white/10 hover:text-white lg:size-8"
+          title={t('action.media.title')}
+          aria-label={t('action.media.title')}
+        >
+          <i className={`${icon} text-sm lg:text-base`} aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center" className="min-w-[180px]">
+        <div className="px-2 py-1.5 text-xs font-medium text-white/50">{t('action.media.title')}</div>
+        <DropdownMenuItem onClick={() => onChange('all')} className="justify-between">
+          <span className="flex items-center gap-2">
+            <i className="i-mingcute-grid-line text-base" />
+            {t('gallery.media.all')}
+          </span>
+          {mediaKind === 'all' && <i className="i-mingcute-check-line text-base" />}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChange('photo')} className="justify-between">
+          <span className="flex items-center gap-2">
+            <i className="i-mingcute-camera-2-line text-base" />
+            {t('gallery.media.photos')}
+          </span>
+          {mediaKind === 'photo' && <i className="i-mingcute-check-line text-base" />}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onChange('video')} className="justify-between">
+          <span className="flex items-center gap-2">
+            <i className="i-mingcute-video-line text-base" />
+            {t('gallery.media.videos')}
+          </span>
+          {mediaKind === 'video' && <i className="i-mingcute-check-line text-base" />}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
