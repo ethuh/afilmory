@@ -19,6 +19,7 @@ const data = mediaLoader.getMedia() as unknown as MediaManifest[]
 
 // 抽取媒体筛选和排序逻辑为独立函数
 const filterAndSortMedia = (
+  mediaKind: 'all' | 'photo' | 'video',
   selectedTags: string[],
   selectedCameras: string[],
   selectedLenses: string[],
@@ -28,6 +29,12 @@ const filterAndSortMedia = (
 ) => {
   // 根据 tags、cameras、lenses 和 ratings 筛选
   let filteredMedia = data
+
+  if (mediaKind === 'photo') {
+    filteredMedia = filteredMedia.filter(isPhotoManifestItem)
+  } else if (mediaKind === 'video') {
+    filteredMedia = filteredMedia.filter(isVideoManifestItem)
+  }
 
   // Tags 筛选：根据模式进行并集或交集筛选
   if (selectedTags.length > 0) {
@@ -43,7 +50,7 @@ const filterAndSortMedia = (
   }
 
   // Cameras 筛选：照片的相机必须匹配选中的相机之一
-  if (selectedCameras.length > 0) {
+  if (mediaKind !== 'video' && selectedCameras.length > 0) {
     filteredMedia = filteredMedia.filter((item) => {
       if (!isPhotoManifestItem(item)) return false
       if (!item.exif?.Make || !item.exif?.Model) return false
@@ -53,7 +60,7 @@ const filterAndSortMedia = (
   }
 
   // Lenses 筛选：照片的镜头必须匹配选中的镜头之一
-  if (selectedLenses.length > 0) {
+  if (mediaKind !== 'video' && selectedLenses.length > 0) {
     filteredMedia = filteredMedia.filter((item) => {
       if (!isPhotoManifestItem(item)) return false
       if (!item.exif?.LensModel) return false
@@ -65,7 +72,7 @@ const filterAndSortMedia = (
   }
 
   // Ratings 筛选：照片的评分必须大于等于选中的最小阈值
-  if (selectedRatings !== null) {
+  if (mediaKind !== 'video' && selectedRatings !== null) {
     filteredMedia = filteredMedia.filter((item) => {
       if (!isPhotoManifestItem(item)) return false
       if (!item.exif?.Rating) return false
@@ -95,6 +102,7 @@ export const getFilteredPhotos = () => {
   // 直接从 jotaiStore 中读取当前状态
   const currentGallerySetting = jotaiStore.get(gallerySettingAtom)
   return filterAndSortMedia(
+    currentGallerySetting.mediaKind,
     currentGallerySetting.selectedTags,
     currentGallerySetting.selectedCameras,
     currentGallerySetting.selectedLenses,
@@ -105,12 +113,20 @@ export const getFilteredPhotos = () => {
 }
 
 export const usePhotos = () => {
-  const { sortOrder, selectedTags, selectedCameras, selectedLenses, selectedRatings, tagFilterMode } =
+  const { mediaKind, sortOrder, selectedTags, selectedCameras, selectedLenses, selectedRatings, tagFilterMode } =
     useAtomValue(gallerySettingAtom)
 
   const masonryItems = useMemo(() => {
-    return filterAndSortMedia(selectedTags, selectedCameras, selectedLenses, selectedRatings, sortOrder, tagFilterMode)
-  }, [sortOrder, selectedTags, selectedCameras, selectedLenses, selectedRatings, tagFilterMode])
+    return filterAndSortMedia(
+      mediaKind,
+      selectedTags,
+      selectedCameras,
+      selectedLenses,
+      selectedRatings,
+      sortOrder,
+      tagFilterMode,
+    )
+  }, [mediaKind, sortOrder, selectedTags, selectedCameras, selectedLenses, selectedRatings, tagFilterMode])
 
   return masonryItems
 }

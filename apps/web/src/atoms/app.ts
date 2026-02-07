@@ -3,10 +3,12 @@ import { atom } from 'jotai'
 export type GallerySortBy = 'date'
 export type GallerySortOrder = 'asc' | 'desc'
 export type GalleryViewMode = 'masonry' | 'list'
+export type GalleryMediaKind = 'all' | 'photo' | 'video'
 
 export const gallerySettingAtom = atom({
   sortBy: 'date' as GallerySortBy,
   sortOrder: 'desc' as GallerySortOrder,
+  mediaKind: 'all' as GalleryMediaKind,
   selectedTags: [] as string[],
   selectedCameras: [] as string[], // Selected camera display names
   selectedLenses: [] as string[], // Selected lens display names
