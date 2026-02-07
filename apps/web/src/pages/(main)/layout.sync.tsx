@@ -71,16 +71,23 @@ const useStateRestoreFromUrl = () => {
     const lensesFromSearchParams = searchParams.get('lenses')?.split(',')
     const ratingsFromSearchParams = searchParams.get('rating') ? Number(searchParams.get('rating')) : null
     const tagModeFromSearchParams = searchParams.get('tag_mode') as 'union' | 'intersection' | null
+    const mediaFromSearchParams = searchParams.get('media')
+    const parsedMediaKind =
+      mediaFromSearchParams === 'all' || mediaFromSearchParams === 'photo' || mediaFromSearchParams === 'video'
+        ? mediaFromSearchParams
+        : null
 
     if (
       tagsFromSearchParams ||
       camerasFromSearchParams ||
       lensesFromSearchParams ||
       ratingsFromSearchParams !== null ||
-      tagModeFromSearchParams
+      tagModeFromSearchParams ||
+      parsedMediaKind
     ) {
       setGallerySetting((prev) => ({
         ...prev,
+        mediaKind: parsedMediaKind || prev.mediaKind,
         selectedTags: tagsFromSearchParams || prev.selectedTags,
         selectedCameras: camerasFromSearchParams || prev.selectedCameras,
         selectedLenses: lensesFromSearchParams || prev.selectedLenses,
@@ -101,7 +108,7 @@ const useStateRestoreFromUrl = () => {
 }
 
 const useSyncStateToUrl = () => {
-  const { selectedTags, selectedCameras, selectedLenses, selectedRatings, tagFilterMode } =
+  const { mediaKind, selectedTags, selectedCameras, selectedLenses, selectedRatings, tagFilterMode } =
     useAtomValue(gallerySettingAtom)
   const [_, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -137,6 +144,7 @@ const useSyncStateToUrl = () => {
     const lenses = selectedLenses.join(',')
     const rating = selectedRatings?.toString() ?? ''
     const tagMode = tagFilterMode === 'union' ? '' : tagFilterMode
+    const media = mediaKind === 'all' ? '' : mediaKind
 
     setSearchParams((search) => {
       const currentTags = search.get('tags')
@@ -144,6 +152,7 @@ const useSyncStateToUrl = () => {
       const currentLenses = search.get('lenses')
       const currentRating = search.get('rating')
       const currentTagMode = search.get('tag_mode')
+      const currentMedia = search.get('media')
 
       // Check if anything has changed
       if (
@@ -151,7 +160,8 @@ const useSyncStateToUrl = () => {
         currentCameras === cameras &&
         currentLenses === lenses &&
         currentRating === rating &&
-        currentTagMode === tagMode
+        currentTagMode === tagMode &&
+        (currentMedia ?? '') === media
       ) {
         return search
       }
@@ -193,7 +203,14 @@ const useSyncStateToUrl = () => {
         newer.delete('tag_mode')
       }
 
+      // Update media kind
+      if (media) {
+        newer.set('media', media)
+      } else {
+        newer.delete('media')
+      }
+
       return newer
     })
-  }, [selectedTags, selectedCameras, selectedLenses, selectedRatings, tagFilterMode, setSearchParams])
+  }, [mediaKind, selectedTags, selectedCameras, selectedLenses, selectedRatings, tagFilterMode, setSearchParams])
 }
