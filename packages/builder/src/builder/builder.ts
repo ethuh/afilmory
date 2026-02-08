@@ -61,42 +61,56 @@ async function generateVideoThumbnail(
     await fs.access(outPath)
   } catch {
     try {
-      await execa('ffmpeg', [
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-y',
-        '-ss',
-        '1',
-        '-i',
-        inputPath,
-        '-frames:v',
-        '1',
-        '-vf',
-        'scale=600:-2',
-        '-q:v',
-        '3',
-        outPath,
-      ])
+      await execa(
+        'ffmpeg',
+        [
+          '-hide_banner',
+          '-loglevel',
+          'error',
+          '-y',
+          '-ss',
+          '1',
+          '-i',
+          inputPath,
+          '-frames:v',
+          '1',
+          '-vf',
+          'scale=600:-2',
+          '-q:v',
+          '3',
+          outPath,
+        ],
+        {
+          timeout: 60_000,
+          killSignal: 'SIGKILL',
+        },
+      )
     } catch {
       // Fallback for very short videos
-      await execa('ffmpeg', [
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-y',
-        '-ss',
-        '0',
-        '-i',
-        inputPath,
-        '-frames:v',
-        '1',
-        '-vf',
-        'scale=600:-2',
-        '-q:v',
-        '3',
-        outPath,
-      ])
+      await execa(
+        'ffmpeg',
+        [
+          '-hide_banner',
+          '-loglevel',
+          'error',
+          '-y',
+          '-ss',
+          '0',
+          '-i',
+          inputPath,
+          '-frames:v',
+          '1',
+          '-vf',
+          'scale=600:-2',
+          '-q:v',
+          '3',
+          outPath,
+        ],
+        {
+          timeout: 60_000,
+          killSignal: 'SIGKILL',
+        },
+      )
     }
   }
 
@@ -241,6 +255,8 @@ export class AfilmoryBuilder {
       const videoObjects = allObjects.filter(
         (obj) => obj?.key && isMp4Key(obj.key) && !livePhotoVideoKeySet.has(obj.key),
       )
+
+      logger.main.info(`存储中找到 ${videoObjects.length} 个视频`)
 
       await this.emitPluginEvent(runState, 'afterLivePhotoDetection', {
         options,
@@ -527,26 +543,21 @@ export class AfilmoryBuilder {
         },
       })
 
-      // 检测并处理已删除的图片
-      deletedCount = await handleDeletedPhotos(manifest)
-
-      await this.emitPluginEvent(runState, 'afterCleanup', {
-        options,
-        manifest,
-        deletedCount,
-      })
-
       // 生成相机和镜头集合
       const cameras = this.generateCameraCollection(manifest)
       const lenses = this.generateLensCollection(manifest)
 
       const videoItems: VideoManifestItem[] = []
-      for (const obj of videoObjects) {
-        const {key} = obj
+      for (const [index, obj] of videoObjects.entries()) {
+        const { key } = obj
         const id = this.generateMediaId(key)
         const url = await storageManager.generatePublicUrl(key)
         const lastModified = obj.lastModified?.toISOString() || new Date().toISOString()
         const size = obj.size || 0
+
+        if (index < 5 || (index + 1) % 50 === 0) {
+          logger.main.info(`[VIDEO] 处理 ${index + 1}/${videoObjects.length}: ${key}`)
+        }
 
         let thumbnailUrl = '/video-placeholder.svg'
         let thumbHash: string | null = null
@@ -556,6 +567,14 @@ export class AfilmoryBuilder {
           const abs = path.join(storage.basePath, key)
           try {
             const result = await generateVideoThumbnail(abs, id)
+            thumbnailUrl = result.url
+            thumbHash = result.thumbHash
+          } catch {
+            // keep placeholder
+          }
+        } else if (storage.provider === 'openlist') {
+          try {
+            const result = await generateVideoThumbnail(url, id)
             thumbnailUrl = result.url
             thumbHash = result.thumbHash
           } catch {
@@ -585,6 +604,15 @@ export class AfilmoryBuilder {
       }
 
       const mediaManifest: MediaManifestItem[] = [...manifest, ...videoItems]
+
+      // 检测并处理已删除的缩略图（基于最终 media manifest）
+      deletedCount = await handleDeletedPhotos(mediaManifest)
+
+      await this.emitPluginEvent(runState, 'afterCleanup', {
+        options,
+        manifest,
+        deletedCount,
+      })
 
       await this.emitPluginEvent(runState, 'beforeSaveManifest', {
         options,

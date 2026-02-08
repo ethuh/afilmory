@@ -85,23 +85,23 @@ export async function saveManifest(
 // 检测并处理已删除的图片
 export async function handleDeletedPhotos(items: MediaManifestItem[]): Promise<number> {
   logger.main.info('🔍 检查已删除的图片...')
-  const photos = items.filter((item) => item.kind !== 'video')
-  if (photos.length === 0) {
-    // Clear all thumbnails
-    await fs.rm(path.join(workdir, 'public/thumbnails'), { recursive: true, force: true })
-    logger.main.info('🔍 没有图片，清空缩略图...')
+
+  const thumbnailsDir = path.join(workdir, 'public/thumbnails')
+
+  let deletedCount = 0
+  let allThumbnails: string[]
+  try {
+    allThumbnails = await fs.readdir(thumbnailsDir)
+  } catch {
     return 0
   }
 
-  let deletedCount = 0
-  const allThumbnails = await fs.readdir(path.join(workdir, 'public/thumbnails'))
-
   // If thumbnails not in manifest, delete it
-  const manifestKeySet = new Set(photos.map((item) => item.id))
+  const manifestKeySet = new Set(items.map((item) => item.id))
 
   for (const thumbnail of allThumbnails) {
     if (!manifestKeySet.has(basename(thumbnail, '.jpg'))) {
-      await fs.unlink(path.join(workdir, 'public/thumbnails', thumbnail))
+      await fs.unlink(path.join(thumbnailsDir, thumbnail))
       deletedCount++
     }
   }
