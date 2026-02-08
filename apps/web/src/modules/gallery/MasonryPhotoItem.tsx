@@ -79,6 +79,7 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: MediaManifest; wi
   // 独立视频条目或（Live/Motion）附加视频都允许 hover 预览
   const hasAttachedVideo = !isVideoItem && (data as PhotoManifest).video !== undefined
   const hasPreviewVideo = isVideoItem || hasAttachedVideo
+  const previewSrc = isVideoItem ? data.previewUrl || data.videoUrl : undefined
 
   // Live Photo/Motion Photo 视频加载逻辑
   useEffect(() => {
@@ -94,7 +95,7 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: MediaManifest; wi
     }
 
     const { originalUrl } = data as PhotoManifest
-    const {video} = (data as PhotoManifest)
+    const { video } = data as PhotoManifest
     if (!video) {
       return
     }
@@ -147,7 +148,6 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: MediaManifest; wi
         imageLoaderManagerRef.current = null
       }
     }
-     
   }, [data, imageLoaded, livePhotoVideoLoaded, isConvertingVideo])
 
   // Live Photo/Motion Photo hover 处理（仅在桌面端）
@@ -161,6 +161,13 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: MediaManifest; wi
       setIsPlayingLivePhoto(true)
       const video = videoRef.current
       if (video) {
+        if (isVideoItem && previewSrc) {
+          const currentSrc = video.getAttribute('src')
+          if (currentSrc !== previewSrc) {
+            video.setAttribute('src', previewSrc)
+            video.load()
+          }
+        }
         try {
           video.currentTime = 0
         } catch {
@@ -173,7 +180,7 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: MediaManifest; wi
           })
         }
       }
-    }, 200) // 200ms hover 延迟
+    }, 2000) // 2s hover 延迟
   }, [hasPreviewVideo, isVideoItem, livePhotoVideoLoaded, isPlayingLivePhoto, isConvertingVideo])
 
   const handleMouseLeave = useCallback(() => {
@@ -187,10 +194,23 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: MediaManifest; wi
       const video = videoRef.current
       if (video) {
         video.pause()
-        video.currentTime = 0
+        try {
+          video.currentTime = 0
+        } catch {
+          // ignore
+        }
+
+        if (isVideoItem) {
+          try {
+            video.removeAttribute('src')
+            video.load()
+          } catch {
+            // ignore
+          }
+        }
       }
     }
-  }, [isPlayingLivePhoto])
+  }, [isPlayingLivePhoto, isVideoItem])
 
   // 视频播放结束处理
   const handleVideoEnded = useCallback(() => {
@@ -242,10 +262,10 @@ export const MasonryPhotoItem = memo(({ data, width }: { data: MediaManifest; wi
             'absolute inset-0 h-full w-full object-cover duration-300 group-hover:scale-105',
             isPlayingLivePhoto ? 'z-10' : 'pointer-events-none opacity-0',
           )}
-          src={isVideoItem ? data.previewUrl || data.videoUrl : undefined}
+          src={isVideoItem ? (isPlayingLivePhoto ? previewSrc : undefined) : undefined}
           muted
           playsInline
-          preload="metadata"
+          preload={isPlayingLivePhoto ? 'metadata' : 'none'}
           onEnded={handleVideoEnded}
         />
       )}

@@ -613,6 +613,7 @@ const VideoSlide = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const hasAppliedResumeRef = useRef(false)
+  const shouldLoad = isCurrent && isOpen
 
   useEffect(() => {
     if (isCurrent) {
@@ -655,12 +656,19 @@ const VideoSlide = ({
     const el = videoRef.current
     if (!el) return
 
-    if (!isCurrent || !isOpen) {
+    if (!shouldLoad) {
       el.pause()
+      hasAppliedResumeRef.current = false
+      try {
+        el.removeAttribute('src')
+        el.load()
+      } catch {
+        // ignore
+      }
       return
     }
 
-    const maybeSeekAndPlay = async () => {
+    const maybeSeek = () => {
       if (!hasAppliedResumeRef.current && typeof resumeAt === 'number' && Number.isFinite(resumeAt) && resumeAt > 0) {
         try {
           el.currentTime = resumeAt
@@ -669,39 +677,33 @@ const VideoSlide = ({
         }
         hasAppliedResumeRef.current = true
       }
-
-      try {
-        await el.play()
-      } catch {
-        // Autoplay can be blocked even when muted; user gesture will start it.
-      }
     }
 
     const handleLoadedMetadata = () => {
-      void maybeSeekAndPlay()
+      maybeSeek()
     }
 
     el.addEventListener('loadedmetadata', handleLoadedMetadata)
     if (el.readyState >= 1) {
-      void maybeSeekAndPlay()
+      maybeSeek()
     }
 
     return () => {
       el.removeEventListener('loadedmetadata', handleLoadedMetadata)
     }
-  }, [isCurrent, isOpen, resumeAt])
+  }, [resumeAt, shouldLoad])
 
   return (
     <div className="relative flex h-full w-full items-center justify-center bg-black">
       <video
         ref={videoRef}
-        src={video.videoUrl}
+        src={shouldLoad ? video.videoUrl : undefined}
         poster={video.thumbnailUrl}
         className={clsx('h-full w-full', fit === 'cover' ? 'object-cover' : 'object-contain')}
         playsInline
         muted={!soundEnabled}
         controls
-        preload="metadata"
+        preload={shouldLoad ? 'metadata' : 'none'}
       />
     </div>
   )
