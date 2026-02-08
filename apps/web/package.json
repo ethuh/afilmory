@@ -1,10 +1,12 @@
 {
   "name": "@afilmory/web",
   "version": "0.0.1",
+  "description": "Afilmory web app",
   "repository": {
     "type": "git",
     "url": "https://github.com/Afilmory/Afilmory"
   },
+  "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "scripts": {
     "analyze": "analyzer=1 vite build",
@@ -38,6 +40,7 @@
     "@tanstack/react-virtual": "3.13.18",
     "@use-gesture/react": "10.3.1",
     "@uswriting/exiftool": "1.0.9",
+    "artplayer": "^5.3.0",
     "blurhash": "2.0.5",
     "clsx": "2.1.1",
     "consola": "3.4.2",
