@@ -23,6 +23,7 @@ import { VideoInspector } from '~/modules/inspector/VideoInspector'
 import { ShareModal } from '~/modules/social/ShareModal'
 import type { MediaManifest, PhotoManifest, VideoManifestItem } from '~/types/media'
 
+import { ArtPlayerVideo } from '../media/ArtPlayerVideo'
 import { ReactionRail } from '../social'
 import { PhotoViewerTransitionPreview } from './animations/PhotoViewerTransitionPreview'
 import { usePhotoViewerTransitions } from './animations/usePhotoViewerTransitions'
@@ -408,6 +409,8 @@ export const PhotoViewer = ({
                     slidesPerView={1}
                     initialSlide={currentIndex}
                     virtual
+                    noSwiping
+                    noSwipingClass="swiper-no-swiping"
                     keyboard={{
                       enabled: true,
                       onlyInViewport: true,
@@ -451,6 +454,7 @@ export const PhotoViewer = ({
                                 soundEnabled={soundEnabled}
                                 volume={volume}
                                 onVolumeChange={setVolume}
+                                onSoundEnabledChange={setSoundEnabled}
                                 onActiveVideoChange={(el) => {
                                   if (isCurrentSlide) {
                                     activeVideoRef.current = el
@@ -598,6 +602,7 @@ const VideoSlide = ({
   soundEnabled,
   volume,
   onVolumeChange,
+  onSoundEnabledChange,
   onActiveVideoChange,
   fit,
 }: {
@@ -608,103 +613,80 @@ const VideoSlide = ({
   soundEnabled: boolean
   volume: number
   onVolumeChange: (volume: number) => void
+  onSoundEnabledChange: (enabled: boolean) => void
   onActiveVideoChange: (el: HTMLVideoElement | null) => void
   fit: 'contain' | 'cover'
 }) => {
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const hasAppliedResumeRef = useRef(false)
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null)
   const shouldLoad = isCurrent && isOpen
 
   useEffect(() => {
     if (isCurrent) {
-      onActiveVideoChange(videoRef.current)
+      onActiveVideoChange(videoEl)
       return () => {
         onActiveVideoChange(null)
       }
     }
     return
-  }, [isCurrent, onActiveVideoChange])
+  }, [isCurrent, onActiveVideoChange, videoEl])
 
   useEffect(() => {
-    if (!isCurrent) {
-      hasAppliedResumeRef.current = false
-    }
-  }, [isCurrent, video.id])
-
-  useEffect(() => {
-    const el = videoRef.current
+    const el = videoEl
     if (!el) return
-    el.muted = !soundEnabled
-    el.volume = volume
-  }, [soundEnabled, volume])
 
-  useEffect(() => {
-    const el = videoRef.current
-    if (!el) return
+    let raf = 0
+    let pendingVolume: number | null = null
+    let lastSentVolume: number | null = null
 
     const handleVolumeChange = () => {
-      onVolumeChange(el.volume)
+      const nextEnabled = !el.muted
+      if (nextEnabled !== soundEnabled) {
+        onSoundEnabledChange(nextEnabled)
+      }
+
+      // Don't persist a 0 volume value that comes from muting.
+      if (el.muted && el.volume === 0) {
+        return
+      }
+
+      pendingVolume = el.volume
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        if (pendingVolume == null) return
+        if (lastSentVolume == null || Math.abs(pendingVolume - lastSentVolume) > 0.005) {
+          lastSentVolume = pendingVolume
+          onVolumeChange(pendingVolume)
+        }
+      })
     }
 
     el.addEventListener('volumechange', handleVolumeChange)
     return () => {
       el.removeEventListener('volumechange', handleVolumeChange)
-    }
-  }, [onVolumeChange])
-
-  useEffect(() => {
-    const el = videoRef.current
-    if (!el) return
-
-    if (!shouldLoad) {
-      el.pause()
-      hasAppliedResumeRef.current = false
-      try {
-        el.removeAttribute('src')
-        el.load()
-      } catch {
-        // ignore
-      }
-      return
-    }
-
-    const maybeSeek = () => {
-      if (!hasAppliedResumeRef.current && typeof resumeAt === 'number' && Number.isFinite(resumeAt) && resumeAt > 0) {
-        try {
-          el.currentTime = resumeAt
-        } catch {
-          // ignore
-        }
-        hasAppliedResumeRef.current = true
+      if (raf) {
+        cancelAnimationFrame(raf)
       }
     }
-
-    const handleLoadedMetadata = () => {
-      maybeSeek()
-    }
-
-    el.addEventListener('loadedmetadata', handleLoadedMetadata)
-    if (el.readyState >= 1) {
-      maybeSeek()
-    }
-
-    return () => {
-      el.removeEventListener('loadedmetadata', handleLoadedMetadata)
-    }
-  }, [resumeAt, shouldLoad])
+  }, [onSoundEnabledChange, onVolumeChange, soundEnabled, videoEl])
 
   return (
     <div className="relative flex h-full w-full items-center justify-center bg-black">
-      <video
-        ref={videoRef}
-        src={shouldLoad ? video.videoUrl : undefined}
-        poster={video.thumbnailUrl}
-        className={clsx('h-full w-full', fit === 'cover' ? 'object-cover' : 'object-contain')}
-        playsInline
-        muted={!soundEnabled}
-        controls
-        preload={shouldLoad ? 'metadata' : 'none'}
-      />
+      <div className="swiper-no-swiping h-full w-full">
+        <ArtPlayerVideo
+          url={video.videoUrl}
+          poster={video.thumbnailUrl}
+          active={shouldLoad}
+          muted={!soundEnabled}
+          volume={volume}
+          fit={fit}
+          resumeAt={resumeAt}
+          className="h-full w-full"
+          onVideoElementChange={(el) => {
+            setVideoEl(el)
+          }}
+        />
+      </div>
     </div>
   )
 }
