@@ -6,6 +6,7 @@ import type {
   EagleConfig,
   GitHubConfig,
   LocalConfig,
+  OpenListConfig,
   OSSConfig,
   S3Config,
   StorageProviderCategory,
@@ -14,6 +15,7 @@ import { B2StorageProvider } from './b2-provider.js'
 import { EagleStorageProvider } from './eagle-provider.js'
 import { GitHubStorageProvider } from './github-provider.js'
 import { LocalStorageProvider } from './local-provider.js'
+import { OpenListStorageProvider } from './openlist-provider.js'
 import { S3StorageProvider } from './s3-provider.js'
 
 type BuiltinProviderRegistration = {
@@ -47,6 +49,11 @@ const BUILTIN_PROVIDER_REGISTRATIONS: BuiltinProviderRegistration[] = [
     name: 'github',
     category: 'remote',
     factory: (config) => new GitHubStorageProvider(config as GitHubConfig),
+  },
+  {
+    name: 'openlist',
+    category: 'remote',
+    factory: (config) => new OpenListStorageProvider(config as OpenListConfig),
   },
   {
     name: 'local',

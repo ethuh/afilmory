@@ -194,6 +194,44 @@ export type LocalConfig = {
   maxFileLimit?: number // 最大文件数量限制
 }
 
+export type OpenListConfig = {
+  provider: 'openlist'
+  /**
+   * Base URL of your OpenList instance.
+   * Example: https://alist.example.com
+   */
+  baseUrl: string
+  /**
+   * Login credentials (no 2FA). Prefer env vars.
+   */
+  username?: string
+  password?: string
+  /**
+   * Optional pre-issued token. When present, login is skipped.
+   */
+  token?: string
+  /**
+   * Roots to scan recursively (including mount name).
+   * Example: /aaaa/Videos
+   */
+  roots: string[]
+  /**
+   * Page size for /api/fs/list (OpenList typically caps at 100).
+   */
+  perPage?: number
+  /**
+   * Force refresh OpenList cache.
+   */
+  refresh?: boolean
+  /**
+   * Optional passwords for protected directories.
+   */
+  pathPasswords?: Record<string, string>
+  excludeRegex?: string
+  maxFileLimit?: number
+  requestTimeoutMs?: number
+}
+
 export type EagleRule =
   | {
       type: 'tag'
@@ -266,13 +304,20 @@ export interface CustomStorageConfig {
   [key: string]: unknown
 }
 
-export type RemoteStorageProviderName = 's3' | 'oss' | 'cos' | 'b2' | 'github'
+export type RemoteStorageProviderName = 's3' | 'oss' | 'cos' | 'b2' | 'github' | 'openlist'
 export type LocalStorageProviderName = 'eagle' | 'local'
 
-export const REMOTE_STORAGE_PROVIDERS: readonly RemoteStorageProviderName[] = ['s3', 'oss', 'cos', 'b2', 'github']
+export const REMOTE_STORAGE_PROVIDERS: readonly RemoteStorageProviderName[] = [
+  's3',
+  'oss',
+  'cos',
+  'b2',
+  'github',
+  'openlist',
+]
 export const LOCAL_STORAGE_PROVIDERS: readonly LocalStorageProviderName[] = ['eagle', 'local']
 
-export type RemoteStorageConfig = S3CompatibleConfig | B2Config | GitHubConfig
+export type RemoteStorageConfig = S3CompatibleConfig | B2Config | GitHubConfig | OpenListConfig
 export type LocalStorageConfig = EagleConfig | LocalConfig
 
 export type ManagedStorageConfig = {
