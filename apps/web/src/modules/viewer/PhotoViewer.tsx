@@ -5,6 +5,7 @@ import 'swiper/css/navigation'
 
 import { Thumbhash } from '@afilmory/ui'
 import { Spring } from '@afilmory/utils'
+import { useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { useAtom, useAtomValue } from 'jotai'
 import { AnimatePresence, m } from 'motion/react'
@@ -16,6 +17,7 @@ import { Swiper, SwiperSlide } from 'swiper/react'
 
 import { mediaResumeTimeAtom, mediaSoundEnabledAtom, mediaVolumeAtom } from '~/atoms/media-playback'
 import { useMobile } from '~/hooks/useMobile'
+import { getOpenListSidecar } from '~/lib/openlist-sidecar'
 import type { LoadingIndicatorRef } from '~/modules/inspector/LoadingIndicator'
 import { LoadingIndicator } from '~/modules/inspector/LoadingIndicator'
 import { PhotoInspector } from '~/modules/inspector/PhotoInspector'
@@ -212,7 +214,7 @@ export const PhotoViewer = ({
     } catch {
       // ignore
     }
-  }, [])
+  }, [activeVideoRef, containerRef])
 
   const enableSound = useCallback(() => {
     setSoundEnabled(true)
@@ -223,11 +225,32 @@ export const PhotoViewer = ({
     }
   }, [setSoundEnabled, volume])
 
-  if (!currentItem) return null
-
   const currentThumbHash = transitionThumbHash
-  const currentPhoto = isCurrentPhoto ? (currentItem as PhotoManifest) : null
-  const currentVideo = isCurrentVideo ? (currentItem as VideoManifestItem) : null
+  const currentPhoto = currentItem && isCurrentPhoto ? (currentItem as PhotoManifest) : null
+  const currentVideo = currentItem && isCurrentVideo ? (currentItem as VideoManifestItem) : null
+
+  const sidecarEnabled = Boolean(
+    isOpen &&
+    isViewerContentVisible &&
+    isInspectorVisible &&
+    currentVideo &&
+    typeof currentVideo.s3Key === 'string' &&
+    currentVideo.s3Key.length > 0,
+  )
+
+  const { data: sidecar } = useQuery({
+    queryKey: ['video-sidecar', currentVideo?.s3Key],
+    enabled: sidecarEnabled,
+    staleTime: 1000 * 60 * 60,
+    queryFn: async () => {
+      console.info('[PhotoViewer] sidecar query', {
+        key: currentVideo!.s3Key,
+      })
+      return await getOpenListSidecar(currentVideo!.s3Key)
+    },
+  })
+
+  if (!currentItem) return null
 
   return (
     <>
@@ -461,6 +484,7 @@ export const PhotoViewer = ({
                                   }
                                 }}
                                 fit={isWideMode ? 'cover' : 'contain'}
+                                subtitleUrl={isCurrentSlide ? (sidecar?.ass?.fetchUrl ?? null) : null}
                               />
                             ) : (
                               <ProgressiveImage
@@ -605,6 +629,7 @@ const VideoSlide = ({
   onSoundEnabledChange,
   onActiveVideoChange,
   fit,
+  subtitleUrl,
 }: {
   video: VideoManifestItem
   isCurrent: boolean
@@ -616,6 +641,7 @@ const VideoSlide = ({
   onSoundEnabledChange: (enabled: boolean) => void
   onActiveVideoChange: (el: HTMLVideoElement | null) => void
   fit: 'contain' | 'cover'
+  subtitleUrl?: string | null
 }) => {
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null)
   const shouldLoad = isCurrent && isOpen
@@ -681,6 +707,7 @@ const VideoSlide = ({
           volume={volume}
           fit={fit}
           resumeAt={resumeAt}
+          subtitleUrl={subtitleUrl}
           className="h-full w-full"
           onVideoElementChange={(el) => {
             setVideoEl(el)
