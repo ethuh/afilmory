@@ -19,6 +19,15 @@ export const handler = async (req: NextRequest) => {
     return proxyAssets(req)
   }
 
+  if (pathname.startsWith('/libass-wasm')) {
+    return proxyAssets(req)
+  }
+
+  // JASSUB worker/wasm assets for ASS subtitles
+  if (pathname.startsWith('/jassub')) {
+    return proxyAssets(req)
+  }
+
   if (pathname.startsWith('/photos')) {
     const hasExtension = Boolean(extname(pathname))
 
