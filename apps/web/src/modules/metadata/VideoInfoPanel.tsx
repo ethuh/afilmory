@@ -9,6 +9,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMobile } from '~/hooks/useMobile'
+import { getOpenListSidecar } from '~/lib/openlist-sidecar'
 import { getFileExtension, probeViaServer, probeViaVideoElement } from '~/lib/video-tech-info'
 import type { VideoManifestItem } from '~/types/media'
 
@@ -102,6 +103,32 @@ export const VideoInfoPanelContent: FC<{
 
   const needTechInfo = currentVideo.durationMs == null || !(currentVideo.width > 0) || !(currentVideo.height > 0)
 
+  const sidecarEnabled = visible && typeof currentVideo.s3Key === 'string' && currentVideo.s3Key.length > 0
+  const { data: sidecar } = useQuery({
+    queryKey: ['video-sidecar', currentVideo.s3Key],
+    enabled: sidecarEnabled,
+    staleTime: 1000 * 60 * 60,
+    queryFn: async () => {
+      return await getOpenListSidecar(currentVideo.s3Key)
+    },
+  })
+
+  const { data: nfoText } = useQuery({
+    queryKey: ['video-nfo', currentVideo.s3Key, sidecar?.nfo?.fetchUrl],
+    enabled: visible && Boolean(sidecar?.nfo?.fetchUrl),
+    staleTime: 1000 * 60 * 60,
+    queryFn: async () => {
+      const url = sidecar!.nfo!.fetchUrl
+      const res = await fetch(url)
+      if (!res.ok) {
+        throw new Error(`NFO_FETCH_FAILED:${res.status}`)
+      }
+      return await res.text()
+    },
+  })
+
+  const parsedNfo = useMemo(() => (nfoText ? parseNfo(nfoText) : null), [nfoText])
+
   const { data: tech, isPending } = useQuery({
     queryKey: ['video-tech-info', currentVideo.id, currentVideo.videoUrl],
     enabled: visible && needTechInfo,
@@ -164,6 +191,22 @@ export const VideoInfoPanelContent: FC<{
             {formattedDateTaken && <Row label={t('exif.capture.time')} value={formattedDateTaken} />}
           </div>
 
+          {parsedNfo && (
+            <div className="mt-4">
+              <h4 className="mb-2 text-sm font-medium text-white/80">NFO</h4>
+              <div className="space-y-1 text-sm">
+                {parsedNfo.title && <Row label="Title" value={parsedNfo.title} ellipsis={true} />}
+                {parsedNfo.year && <Row label="Year" value={parsedNfo.year} />}
+                {parsedNfo.rating && <Row label="Rating" value={parsedNfo.rating} />}
+                {parsedNfo.studio && <Row label="Studio" value={parsedNfo.studio} ellipsis={true} />}
+                {parsedNfo.genres && parsedNfo.genres.length > 0 && (
+                  <Row label="Genre" value={parsedNfo.genres.join(' / ')} ellipsis={true} />
+                )}
+                {parsedNfo.plot && <Row label="Plot" value={parsedNfo.plot} ellipsis={true} />}
+              </div>
+            </div>
+          )}
+
           {currentVideo.tags && currentVideo.tags.length > 0 && (
             <div className="mt-3 mb-3">
               <h4 className="mb-2 text-sm font-medium text-white/80">{t('exif.tags')}</h4>
@@ -197,4 +240,56 @@ function formatDuration(durationMs: number) {
     return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
   }
   return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+type ParsedNfo = {
+  title?: string
+  year?: string
+  plot?: string
+  rating?: string
+  studio?: string
+  genres?: string[]
+}
+
+function getText(el: Element | null) {
+  const value = el?.textContent?.trim() ?? ''
+  return value || null
+}
+
+function parseNfo(input: string): ParsedNfo | null {
+  const raw = input.trim()
+  if (!raw) return null
+
+  if (raw.startsWith('<')) {
+    try {
+      const doc = new DOMParser().parseFromString(raw, 'text/xml')
+      if (doc.querySelector('parsererror')) {
+        return null
+      }
+      const root = doc.querySelector('movie, tvshow, episodedetails') ?? doc.documentElement
+      const title = getText(root.querySelector('title'))
+      const year = getText(root.querySelector('year'))
+      const plot = getText(root.querySelector('plot'))
+      const rating = getText(root.querySelector('rating'))
+      const studio = getText(root.querySelector('studio'))
+      const genres = Array.from(root.querySelectorAll('genre'))
+        .map((el) => getText(el))
+        .filter(Boolean)
+
+      const out: ParsedNfo = {}
+      if (title) out.title = title
+      if (year) out.year = year
+      if (plot) out.plot = plot
+      if (rating) out.rating = rating
+      if (studio) out.studio = studio
+      if (genres.length > 0) out.genres = genres
+
+      return Object.keys(out).length > 0 ? out : null
+    } catch {
+      return null
+    }
+  }
+
+  // Unsupported NFO format (non-XML). Keep it minimal.
+  return null
 }
