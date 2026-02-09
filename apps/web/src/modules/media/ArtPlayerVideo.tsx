@@ -1,5 +1,26 @@
 import Artplayer from 'artplayer'
+import SubtitlesOctopus from 'libass-wasm'
 import { useEffect, useRef } from 'react'
+
+async function loadLibassWorker({ workerUrl, wasmUrl }: { workerUrl: string; wasmUrl: string }) {
+  const text = await fetch(workerUrl).then((res) => res.text())
+
+  let workerScriptContent = text
+  workerScriptContent = workerScriptContent.replaceAll(
+    /wasmBinaryFile\s*=\s*"(subtitles-octopus-worker\.wasm)"/g,
+    (_match, wasm) => {
+      const absolute = wasmUrl || new URL(wasm, new URL(workerUrl, document.baseURI)).toString()
+      return `wasmBinaryFile = "${absolute}"`
+    },
+  )
+
+  const workerBlob = new Blob([workerScriptContent], { type: 'text/javascript' })
+  return URL.createObjectURL(workerBlob)
+}
+
+function toAbsoluteUrl(url: string) {
+  return new URL(url, document.baseURI).toString()
+}
 
 interface ArtPlayerVideoProps {
   url: string
@@ -9,6 +30,7 @@ interface ArtPlayerVideoProps {
   volume: number
   fit: 'contain' | 'cover'
   resumeAt?: number
+  subtitleUrl?: string | null
   className?: string
   onVideoElementChange?: (el: HTMLVideoElement | null) => void
 }
@@ -21,6 +43,7 @@ export const ArtPlayerVideo = ({
   volume,
   fit,
   resumeAt,
+  subtitleUrl,
   className,
   onVideoElementChange,
 }: ArtPlayerVideoProps) => {
@@ -28,6 +51,9 @@ export const ArtPlayerVideo = ({
   const artRef = useRef<Artplayer | null>(null)
   const hasAppliedResumeRef = useRef(false)
   const latestInitRef = useRef({ url, poster, muted, volume, fit })
+  const assRef = useRef<SubtitlesOctopus | null>(null)
+  const lastAssUrlRef = useRef<string | null>(null)
+  const workerBlobUrlRef = useRef<string | null>(null)
 
   const shouldInit = active && url.length > 0
 
@@ -47,6 +73,15 @@ export const ArtPlayerVideo = ({
       }
       onVideoElementChange?.(null)
       hasAppliedResumeRef.current = false
+      if (assRef.current) {
+        assRef.current.dispose()
+        assRef.current = null
+      }
+      lastAssUrlRef.current = null
+      if (workerBlobUrlRef.current) {
+        URL.revokeObjectURL(workerBlobUrlRef.current)
+        workerBlobUrlRef.current = null
+      }
       return
     }
 
@@ -78,8 +113,9 @@ export const ArtPlayerVideo = ({
             { default: true, html: 'Show', value: true },
             { html: 'Hide', value: false },
           ],
-          onSelect (item) {
+          onSelect(item) {
             this.subtitle.show = Boolean(item.value)
+            this.emit('subtitle', Boolean(item.value))
             return item.html
           },
         },
@@ -125,6 +161,15 @@ export const ArtPlayerVideo = ({
       }
       onVideoElementChange?.(null)
       hasAppliedResumeRef.current = false
+      if (assRef.current) {
+        assRef.current.dispose()
+        assRef.current = null
+      }
+      lastAssUrlRef.current = null
+      if (workerBlobUrlRef.current) {
+        URL.revokeObjectURL(workerBlobUrlRef.current)
+        workerBlobUrlRef.current = null
+      }
     }
   }, [onVideoElementChange, shouldInit])
 
@@ -189,6 +234,99 @@ export const ArtPlayerVideo = ({
       art.off('video:loadedmetadata', handleLoadedMetadata)
     }
   }, [resumeAt, shouldInit])
+
+  useEffect(() => {
+    const art = artRef.current
+    if (!art || !shouldInit) return
+
+    const next = subtitleUrl?.trim() ?? ''
+    console.info('[ArtPlayerVideo] subtitle update', {
+      hasSubtitle: Boolean(next),
+      url: next || null,
+    })
+
+    const apply = async () => {
+      if (!next) {
+        lastAssUrlRef.current = null
+        if (assRef.current) {
+          assRef.current.dispose()
+          assRef.current = null
+        }
+        return
+      }
+
+      if (lastAssUrlRef.current === next) {
+        return
+      }
+
+      try {
+        const libassWorkerUrl = toAbsoluteUrl('/libass-wasm/subtitles-octopus-worker.js')
+        const libassWasmUrl = toAbsoluteUrl('/libass-wasm/subtitles-octopus-worker.wasm')
+        const fallbackFontUrl = toAbsoluteUrl('/jassub/NotoSansSC.ttf')
+        const subtitleTargetUrl = toAbsoluteUrl(next)
+
+        if (!workerBlobUrlRef.current) {
+          workerBlobUrlRef.current = await loadLibassWorker({
+            workerUrl: libassWorkerUrl,
+            wasmUrl: libassWasmUrl,
+          })
+        }
+
+        // libass-wasm worker crashes if subUrl is undefined; OpenList passes subUrl at init.
+        if (assRef.current) {
+          assRef.current.dispose()
+          assRef.current = null
+        }
+
+        const instance = new SubtitlesOctopus({
+          workerUrl: workerBlobUrlRef.current,
+          fallbackFont: fallbackFontUrl,
+          availableFonts: {},
+          video: art.video,
+          subUrl: subtitleTargetUrl,
+        })
+        assRef.current = instance
+
+        // Ensure overlay on top of video.
+        const {video} = art
+        const parent = video.parentElement
+        if (parent && !parent.style.position) {
+          parent.style.position = 'relative'
+        }
+
+        if (instance.canvasParent) {
+          instance.canvasParent.className = 'artplayer-plugin-ass'
+          instance.canvasParent.style.cssText = `
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            user-select: none;
+            pointer-events: none;
+            z-index: 20;
+          `
+        }
+
+        art.on('subtitle', (visible) => {
+          if (assRef.current?.canvasParent) {
+            assRef.current.canvasParent.style.display = visible ? 'block' : 'none'
+          }
+        })
+        art.on('subtitleOffset', (offset) => {
+          if (assRef.current) {
+            assRef.current.timeOffset = offset
+          }
+        })
+
+        lastAssUrlRef.current = next
+      } catch (error) {
+        console.error('[ArtPlayerVideo] libass init failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
+    void apply()
+  }, [shouldInit, subtitleUrl])
 
   return <div ref={containerRef} className={className} />
 }
