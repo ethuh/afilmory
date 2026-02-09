@@ -675,6 +675,9 @@ importers:
       artplayer:
         specifier: ^5.3.0
         version: 5.3.0
+      artplayer-plugin-jassub:
+        specifier: ^1.0.0
+        version: 1.0.0
       blurhash:
         specifier: 2.0.5
         version: 2.0.5
@@ -711,6 +714,9 @@ importers:
       jotai:
         specifier: 2.16.1
         version: 2.16.1(@babel/core@7.28.4)(@babel/template@7.27.2)(@types/react@19.2.8)(react@19.2.3)
+      libass-wasm:
+        specifier: ^4.1.0
+        version: 4.1.0
       maplibre-gl:
         specifier: ^5.15.0
         version: 5.15.0
@@ -6405,6 +6411,9 @@ packages:
     resolution: {integrity: sha512-BNoCY6SXXPQ7gF2opIP4GBE+Xw7U+pHMYKuzjgCN3GwiaIR09UUeKfheyIry77QtrCBlC0KK0q5/TER/tYh3PQ==}
     engines: {node: '>= 0.4'}
 
+  artplayer-plugin-jassub@1.0.0:
+    resolution: {integrity: sha512-v8O9qXVF728YfQUCtvuSW16U954mDTiYO2QgjBdNSWOZe0o4e/7lN1mrv938lKB//efBCSdmJWjjkspF3TBWhw==}
+
   artplayer@5.3.0:
     resolution: {integrity: sha512-yExO39MpEg4P+bxgChxx1eJfiUPE4q1QQRLCmqGhlsj+ANuaoEkR8hF93LdI5ZyrAcIbJkuEndxEiUoKobifDw==}
 
@@ -8639,6 +8648,9 @@ packages:
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
+
+  libass-wasm@4.1.0:
+    resolution: {integrity: sha512-+RbYT/uuI6VHExCmGyUuMg3A2gQOaCRTzSn8GGDSf3q4cEoUNiINd9u4RGfZXA1UKafW+Hv8bmcKIX4FKbSh0Q==}
 
   libheif-js@1.18.2:
     resolution: {integrity: sha512-4Nk0dKhhRfVS4mECcX2jSDpNU6gcHQLneJjkGQq61N8COGtjSpSA3CI+1Q3kUYv5Vf+SwIqUtaDSdU6JO37c6w==}
@@ -17043,6 +17055,8 @@ snapshots:
       get-intrinsic: 1.3.0
       is-array-buffer: 3.0.5
 
+  artplayer-plugin-jassub@1.0.0: {}
+
   artplayer@5.3.0:
     dependencies:
       option-validator: 2.0.6
@@ -19468,6 +19482,8 @@ snapshots:
     dependencies:
       prelude-ls: 1.2.1
       type-check: 0.4.0
+
+  libass-wasm@4.1.0: {}
 
   libheif-js@1.18.2: {}
 
