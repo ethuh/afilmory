@@ -252,8 +252,7 @@ type ParsedNfo = {
 }
 
 function getText(el: Element | null) {
-  const value = el?.textContent?.trim() ?? ''
-  return value || null
+  return (el?.textContent ?? '').trim()
 }
 
 function parseNfo(input: string): ParsedNfo | null {
