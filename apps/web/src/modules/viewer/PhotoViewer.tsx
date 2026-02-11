@@ -232,7 +232,6 @@ export const PhotoViewer = ({
   const sidecarEnabled = Boolean(
     isOpen &&
     isViewerContentVisible &&
-    isInspectorVisible &&
     currentVideo &&
     typeof currentVideo.s3Key === 'string' &&
     currentVideo.s3Key.length > 0,

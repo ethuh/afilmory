@@ -1,5 +1,7 @@
 import { apiFetch } from '~/lib/api/http'
 
+const DEBUG = import.meta.env.DEV
+
 export type OpenListSidecarItem = {
   key: string
   fetchUrl: string
@@ -13,14 +15,18 @@ export type OpenListSidecarResult = {
 export async function getOpenListSidecar(key: string): Promise<OpenListSidecarResult> {
   const params = new URLSearchParams({ key })
   const url = `/api/openlist/sidecar?${params.toString()}`
-  console.info('[openlist-sidecar] request', { key })
+  if (DEBUG) {
+    console.info('[openlist-sidecar] request', { key })
+  }
   try {
     const result = await apiFetch<OpenListSidecarResult>(url)
-    console.info('[openlist-sidecar] response', {
-      key,
-      ass: result.ass?.key ?? null,
-      nfo: result.nfo?.key ?? null,
-    })
+    if (DEBUG) {
+      console.info('[openlist-sidecar] response', {
+        key,
+        ass: result.ass?.key ?? null,
+        nfo: result.nfo?.key ?? null,
+      })
+    }
     return result
   } catch (error) {
     console.error('[openlist-sidecar] failed', {

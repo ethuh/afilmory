@@ -7,8 +7,8 @@ async function loadLibassWorker({ workerUrl, wasmUrl }: { workerUrl: string; was
 
   let workerScriptContent = text
   workerScriptContent = workerScriptContent.replaceAll(
-    /wasmBinaryFile\s*=\s*"(subtitles-octopus-worker\.wasm)"/g,
-    (_match, wasm) => {
+    /wasmBinaryFile\s*=\s*(['"])(subtitles-octopus-worker\.wasm)\1/g,
+    (_match, _quote, wasm) => {
       const absolute = wasmUrl || new URL(wasm, new URL(workerUrl, document.baseURI)).toString()
       return `wasmBinaryFile = "${absolute}"`
     },
@@ -21,6 +21,8 @@ async function loadLibassWorker({ workerUrl, wasmUrl }: { workerUrl: string; was
 function toAbsoluteUrl(url: string) {
   return new URL(url, document.baseURI).toString()
 }
+
+const DEBUG = import.meta.env.DEV
 
 interface ArtPlayerVideoProps {
   url: string
@@ -93,7 +95,7 @@ export const ArtPlayerVideo = ({
     const art = new Artplayer({
       container,
       url: init.url,
-      poster: init.poster,
+      poster: init.poster ?? '',
       muted: init.muted,
       volume: init.volume,
       theme: 'var(--color-accent)',
@@ -141,7 +143,7 @@ export const ArtPlayerVideo = ({
         '--art-scrollbar-background-hover': 'rgba(255, 255, 255, 0.22)',
       },
       autoplay: false,
-      autoSize: true,
+      autoSize: false,
       playsInline: true,
       isLive: false,
       moreVideoAttr: {
@@ -153,8 +155,27 @@ export const ArtPlayerVideo = ({
 
     onVideoElementChange?.(art.video)
     art.video.style.objectFit = init.fit === 'cover' ? 'cover' : 'contain'
+    art.video.style.width = '100%'
+    art.video.style.height = '100%'
+
+    const handleSubtitle = (visible: boolean) => {
+      const canvasParent = assRef.current?.canvasParent
+      if (!canvasParent) return
+      canvasParent.style.display = visible ? 'block' : 'none'
+    }
+
+    const handleSubtitleOffset = (offset: number) => {
+      if (assRef.current) {
+        assRef.current.timeOffset = offset
+      }
+    }
+
+    art.on('subtitle', handleSubtitle)
+    art.on('subtitleOffset', handleSubtitleOffset)
 
     return () => {
+      art.off('subtitle', handleSubtitle)
+      art.off('subtitleOffset', handleSubtitleOffset)
       if (artRef.current === art) {
         art.destroy()
         artRef.current = null
@@ -240,10 +261,12 @@ export const ArtPlayerVideo = ({
     if (!art || !shouldInit) return
 
     const next = subtitleUrl?.trim() ?? ''
-    console.info('[ArtPlayerVideo] subtitle update', {
-      hasSubtitle: Boolean(next),
-      url: next || null,
-    })
+    if (DEBUG) {
+      console.info('[ArtPlayerVideo] subtitle update', {
+        hasSubtitle: Boolean(next),
+        url: next || null,
+      })
+    }
 
     const apply = async () => {
       if (!next) {
@@ -288,34 +311,32 @@ export const ArtPlayerVideo = ({
         assRef.current = instance
 
         // Ensure overlay on top of video.
-        const {video} = art
+        const { video } = art
         const parent = video.parentElement
         if (parent && !parent.style.position) {
           parent.style.position = 'relative'
+        }
+
+        if (parent && !parent.style.overflow) {
+          parent.style.overflow = 'hidden'
         }
 
         if (instance.canvasParent) {
           instance.canvasParent.className = 'artplayer-plugin-ass'
           instance.canvasParent.style.cssText = `
             position: absolute;
+            inset: 0;
             width: 100%;
             height: 100%;
             user-select: none;
             pointer-events: none;
             z-index: 20;
           `
-        }
 
-        art.on('subtitle', (visible) => {
-          if (assRef.current?.canvasParent) {
-            assRef.current.canvasParent.style.display = visible ? 'block' : 'none'
+          if (parent && instance.canvasParent.parentElement !== parent) {
+            parent.append(instance.canvasParent)
           }
-        })
-        art.on('subtitleOffset', (offset) => {
-          if (assRef.current) {
-            assRef.current.timeOffset = offset
-          }
-        })
+        }
 
         lastAssUrlRef.current = next
       } catch (error) {
